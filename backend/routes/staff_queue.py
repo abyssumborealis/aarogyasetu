@@ -11,7 +11,11 @@ from database import models as m
 from routes.deps import get_current_staff, get_db
 from routes.schemas import (
     CallNextRequest,
+    DepartmentOut,
+    DepartmentQueueOut,
     ManualCheckInRequest,
+    QueueCountsOut,
+    QueueTokenOut,
     ReceptionRegisterRequest,
     StaffScanRequest,
     TokenOut,
@@ -19,6 +23,22 @@ from routes.schemas import (
 from services import queue_service as qs
 
 router = APIRouter(tags=["staff"])
+
+
+# --------------------------------------------------------------------------- #
+# departments
+# --------------------------------------------------------------------------- #
+@router.get("/departments", response_model=list[DepartmentOut])
+def list_departments(
+    db: Session = Depends(get_db),
+    staff: m.StaffUser = Depends(get_current_staff),
+) -> list:
+    """Departments the current staff member can see - their own hospital, or all if super admin."""
+    from sqlalchemy import select
+    query = select(m.Department).where(m.Department.is_active.is_(True))
+    if staff.hospital_id is not None:
+        query = query.where(m.Department.hospital_id == staff.hospital_id)
+    return list(db.scalars(query.order_by(m.Department.name)))
 
 
 # --------------------------------------------------------------------------- #
@@ -67,13 +87,42 @@ def walkin_reception(
 # --------------------------------------------------------------------------- #
 # dashboard / serving patients
 # --------------------------------------------------------------------------- #
-@router.get("/queue/{department_id}")
+@router.get("/queue/{department_id}", response_model=DepartmentQueueOut)
 def department_queue(
     department_id: int, db: Session = Depends(get_db),
     staff: m.StaffUser = Depends(get_current_staff),
-):
-    """Both queues in serving order, plus who's currently being served."""
-    return qs.department_queue(db, staff, department_id)
+) -> DepartmentQueueOut:
+    """
+    Both queues in serving order, plus who's currently being served. Flattened here (rather
+    than returned as raw ORM rows) so the frontend gets plain {code, patient_name, ...} tokens
+    and camelCase counts - queue_service.department_queue() itself returns (Token, full_name)
+    row tuples plus a QueueCounts dataclass, neither of which FastAPI can serialize as-is.
+    """
+    data = qs.department_queue(db, staff, department_id)
+
+    def to_tokens(rows) -> list[QueueTokenOut]:
+        return [
+            QueueTokenOut(
+                id=token.id, code=token.display_code, patient_name=patient_name,
+                priority=token.priority, status=token.status, reason=token.reason,
+                checked_in_at=token.checked_in_at, called_at=token.called_at,
+            )
+            for token, patient_name in rows
+        ]
+
+    counts = data["counts"]
+    return DepartmentQueueOut(
+        department=DepartmentOut.model_validate(data["department"]),
+        counts=QueueCountsOut(
+            physicalWaiting=counts.physical_waiting,
+            virtualWaiting=counts.virtual_waiting,
+            inProgress=counts.in_progress,
+            doctorsAvailable=counts.doctors_available,
+        ),
+        physical=to_tokens(data["physical"]),
+        virtual=to_tokens(data["virtual"]),
+        in_progress=to_tokens(data["in_progress"]),
+    )
 
 
 @router.get("/queue/{department_id}/next", response_model=Optional[TokenOut])

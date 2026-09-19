@@ -1,0 +1,695 @@
+/* =========================================================
+   QUEUE STAFF CONSOLE - global styles
+
+   Order matters: your design system first (tokens, buttons, cards, badges, modals, toasts),
+   then the admin layer below. Everything here uses the design tokens (--primary, --teal,
+   --danger, --radius-*, --shadow-*), so changing main.css re-themes the console.
+   ========================================================= */
+@import "./styles/main.css";
+@import "./styles/components.css";
+
+:root {
+  --ease-out: cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+/* main.css reserves 76px for the patient app's simulation dock; the console has none */
+body {
+  padding-bottom: 0;
+}
+
+main {
+  flex: 1;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+/* ---------- buttons: disabled + magnetic ---------- */
+.btn:disabled,
+.btn:disabled:hover {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none;
+}
+
+.magnetic.magnetic {
+  transition: transform 0.4s var(--ease-out), background-color 0.2s ease, border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.magnetic.magnetic.is-pulling {
+  transition: transform 0.12s linear, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.magnetic-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 0.4s var(--ease-out);
+  pointer-events: none;
+}
+
+/* ---------- header additions ---------- */
+.header-container nav {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.nav-links li {
+  list-style: none;
+}
+
+.header-actions {
+  gap: 10px;
+}
+
+.who {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  font-weight: 550;
+  color: var(--text-secondary);
+}
+
+.system-status-indicator.is-offline {
+  color: var(--danger);
+  background: var(--danger-light);
+  border-color: #f4caca;
+}
+
+.system-status-indicator.is-offline .dot {
+  background: var(--danger);
+}
+
+.effects-toggle {
+  gap: 6px;
+}
+
+.effects-toggle.is-on {
+  color: var(--primary) !important;
+  background: var(--primary-light) !important;
+  border-color: rgba(25, 118, 210, 0.35) !important;
+}
+
+/* ---------- page layout ---------- */
+.page-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.form-field input,
+.form-field select {
+  width: 100%;
+}
+
+.form-gap {
+  margin-bottom: 18px;
+}
+
+.form-error {
+  color: var(--danger);
+  font-size: 0.88rem;
+  font-weight: 550;
+  margin: 4px 0 14px;
+}
+
+.card-error {
+  color: var(--danger);
+  font-size: 0.88rem;
+  margin-bottom: 16px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
+}
+
+.empty-state h3 {
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.empty-note {
+  padding: 22px 18px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  font-size: 0.9rem;
+}
+
+.department-card.skeleton-card {
+  min-height: 220px;
+  background: var(--bg-secondary) !important;
+  border-style: dashed !important;
+  box-shadow: none !important;
+}
+
+/* ---------- dashboard ---------- */
+.next-up {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+}
+
+.next-up-label {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.dept-picker {
+  margin-bottom: 22px;
+}
+
+/* ---------- staff queue ---------- */
+.call-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 22px 26px;
+  margin-bottom: 24px;
+}
+
+.call-bar-info {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.call-bar-next {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 1.02rem;
+}
+
+.call-bar-next strong {
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+  color: var(--primary);
+}
+
+.call-bar-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.call-bar-controls .form-field {
+  min-width: 240px;
+}
+
+.serving-section {
+  margin-bottom: 28px;
+}
+
+.serving-section .subhead-title {
+  margin-bottom: 14px;
+}
+
+.serving-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.serving-list .high-priority-alert-banner {
+  margin-bottom: 0;
+}
+
+.high-priority-alert-banner > div:not(.alert-action) {
+  flex: 1;
+  min-width: 0;
+}
+
+.pulse-icon {
+  color: #5b21b6;
+  display: inline-flex;
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.queues-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  align-items: start;
+}
+
+.count-pill {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  font-weight: 750;
+}
+
+.q-list {
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.q-list:empty {
+  display: none;
+}
+
+.q-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.q-row:last-child {
+  border-bottom: none;
+}
+
+.q-row.is-emergency {
+  box-shadow: inset 3px 0 0 var(--danger);
+  background: #fffafa;
+}
+
+.q-pos {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.q-main {
+  min-width: 0;
+}
+
+.q-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.q-title strong {
+  color: var(--text-primary);
+}
+
+.q-meta {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.priority-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border: 1px solid;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.priority-emergency {
+  color: var(--danger);
+  background: var(--danger-light);
+  border-color: #f4caca;
+}
+
+.priority-priority {
+  color: #92400e;
+  background: var(--warning-light);
+  border-color: #fde68a;
+}
+
+.filter-pill.pill-danger.active {
+  background: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 2px 6px rgba(217, 75, 75, 0.25);
+}
+
+/* ---------- tokens page ---------- */
+.tokens-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.tool-card {
+  padding: 26px;
+}
+
+.tool-card .subhead-desc {
+  margin-bottom: 18px;
+}
+
+.lookup-form {
+  display: flex;
+  gap: 12px;
+  margin: 0 0 8px;
+}
+
+.lookup-field {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.token-result {
+  margin-top: 20px;
+  padding: 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+}
+
+.token-result.is-emergency {
+  background: var(--danger-light);
+  border-color: #f4caca;
+}
+
+.token-result.issued {
+  background: var(--success-light);
+  border-color: #cdeee2;
+}
+
+.token-result.issued.is-emergency {
+  background: var(--danger-light);
+  border-color: #f4caca;
+}
+
+.token-result-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.token-result-code {
+  font-size: 2.3rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--primary);
+}
+
+.token-result.is-emergency .token-result-code {
+  color: var(--danger);
+}
+
+.token-result-where {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.token-result-note {
+  margin-top: 6px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.token-result-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin: 18px 0 12px;
+}
+
+.facts dt {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.facts dd {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* ---------- login ---------- */
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-brand {
+  margin-bottom: 8px;
+}
+
+.login-title {
+  font-size: 1.6rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.login-lead {
+  color: var(--text-secondary);
+  margin-top: -8px;
+}
+
+.login-dev-hint {
+  margin-top: 4px;
+}
+
+/* =========================================================
+   CURSOR EFFECTS (line follower, ring, magnetic, tilt)
+   Rendered only for real mouse/trackpad users who haven't
+   asked for reduced motion (see hooks/useMousePosition.js).
+   ========================================================= */
+.cursor-trail {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 999;
+  pointer-events: none;
+}
+
+.cursor-dot,
+.cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  pointer-events: none;
+  border-radius: 50%;
+  will-change: transform;
+}
+
+.cursor-dot {
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  background: var(--primary);
+  transition: opacity 0.2s ease;
+}
+
+.cursor-ring {
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border: 1.5px solid rgba(25, 118, 210, 0.5);
+  transition: width 0.22s var(--ease-out), height 0.22s var(--ease-out), margin 0.22s var(--ease-out),
+    background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.cursor-ring.is-hover {
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  background: rgba(25, 118, 210, 0.08);
+  border-color: var(--primary);
+}
+
+.cursor-ring.is-down {
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  background: rgba(25, 118, 210, 0.14);
+}
+
+.cursor-ring.is-hover.is-down {
+  width: 42px;
+  height: 42px;
+  margin: -21px 0 0 -21px;
+}
+
+.cursor-ring.is-text {
+  opacity: 0;
+}
+
+.cursor-dot.is-hidden,
+.cursor-ring.is-hidden {
+  opacity: 0;
+}
+
+.tilt-card.tilt-card {
+  position: relative;
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 0.4s var(--ease-out), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.tilt-card.tilt-card.is-tilting {
+  transition: transform 0.08s linear, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.tilt-glare {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(260px circle at var(--gx, 50%) var(--gy, 50%), rgba(25, 118, 210, 0.1), transparent 65%);
+  transition: opacity 0.25s ease;
+}
+
+.tilt-card.is-tilting .tilt-glare {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .tilt-card.tilt-card,
+  .magnetic.magnetic,
+  .magnetic-label {
+    transition: none;
+  }
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+@media (max-width: 992px) {
+  .queues-grid,
+  .tokens-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .who {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Two-row header: brand + actions on top, navigation underneath at full width */
+  header.app-header {
+    height: auto;
+  }
+
+  .header-container {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .brand-wrap {
+    margin-right: auto;
+  }
+
+  .header-container nav {
+    order: 3;
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+
+  .nav-links {
+    gap: 22px;
+  }
+
+  .call-bar-controls,
+  .call-bar-controls .form-field {
+    width: 100%;
+  }
+
+  .call-bar-controls .btn {
+    width: 100%;
+  }
+
+  .facts {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .lookup-form {
+    flex-direction: column;
+  }
+
+  .high-priority-alert-banner {
+    flex-wrap: wrap;
+  }
+
+  .high-priority-alert-banner .alert-action {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
