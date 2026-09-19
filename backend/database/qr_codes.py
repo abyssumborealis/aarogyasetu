@@ -16,7 +16,7 @@ import hmac
 import time
 from typing import Optional, Tuple
 
-from app.models import QRStation
+from database.models import QRStation
 
 
 def _otp(secret: str, window: int, digits: int = 8) -> str:

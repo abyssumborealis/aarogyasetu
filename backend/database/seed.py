@@ -21,10 +21,10 @@ import os
 import random
 from datetime import date, datetime, time, timedelta, timezone
 
-from app import models as m
-from app.database import session_scope
-from app.models import Base
-from app.database import engine
+from database import models as m
+from database.db import session_scope
+from database.models import Base
+from database.db import engine
 
 random.seed(42)
 
