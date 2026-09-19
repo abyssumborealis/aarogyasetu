@@ -1,69 +1,76 @@
-from  pathlib import Path
-from fastapi import FastAPI
+"""
+FastAPI Microservice for Unified ML Predictions.
+Can be run standalone:
+    uvicorn ml.api:app --port 8001 --reload
+"""
+from pathlib import Path
+from typing import Optional
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from src.correction_engine import adjust_demand
-from src.crowd_model import load_model as load_crowd
-from src.crowd_model import predict_crowd
-from src.eta_model import load_model as load_eta
-from src.eta_model import predict_eta
-ROOT = Path(__file__).resolve().parent
-CROWD_PATH = ROOT / "models" / "crowd_model.pkl"
-ETA_PATH = ROOT / "models" / "eta_model.pkl"
-app = FastAPI(title="Hospital Queue ML API", version="1.0.0")
-crowd_model = load_crowd(CROWD_PATH) if CROWD_PATH.exists() else None
-eta_model = load_eta(ETA_PATH) if ETA_PATH.exists() else None
-class CrowdIn(BaseModel):
-    hospital_id: str = "H001"
-    department: str
-    expected_arrivals_15min: float
-    expected_arrivals_30min: float
-    expected_arrivals_60min: float
-    doctors_available: float
-    average_service_time: float
-    current_queue: float
-    historical_average_arrivals: float | None = None
-    hour: int = 10
-    day_of_week: int = 0
-    capacity: int | None = None
-class EtaIn(BaseModel):
-    queue_length: float
-    people_ahead: float
-    doctors_available: float
-    patients_being_served: float
-    average_service_time: float
-    arrival_rate: float = 4
-    service_rate: float = 6
-    emergency_patients: float = 0
-    hour: int = 10
-    department: str = "CARDIOLOGY"
-class UpdateIn(BaseModel):
-    expected_arrivals: float
-    actual_arrivals: float
-    future_expected: float | None = Field(default=None)
+
+from ml.eta_model import predict_eta as run_predict_eta, load_model as load_eta_model
+from ml.crowd_model import predict_crowd as run_predict_crowd, load_model as load_crowd_model
+from ml.correction_engine import CorrectionEngine
+
+app = FastAPI(title="Hospital Queue ML Microservice", version="1.0.0")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+MODELS_DIR = Path(__file__).resolve().parent / "models"
+eta_model = load_eta_model(MODELS_DIR / "eta_model.joblib") if (MODELS_DIR / "eta_model.joblib").exists() else None
+crowd_model = load_crowd_model(MODELS_DIR / "crowd_model.joblib") if (MODELS_DIR / "crowd_model.joblib").exists() else None
+correction_engine = CorrectionEngine(smoothing_weight=0.7)
+
+class ETAPredictionRequest(BaseModel):
+    department: str = Field("Cardiology")
+    department_code: Optional[str] = None
+    people_ahead: int = 0
+    doctors_available: int = 1
+    average_service_time: float = 10.0
+    queue_length: Optional[int] = None
+    emergency_patients: int = 0
+    hour: Optional[int] = None
+
+class CrowdPredictionRequest(BaseModel):
+    department: str = Field("General Medicine")
+    department_code: Optional[str] = None
+    expected_arrivals_15min: int = 0
+    expected_arrivals_30min: int = 0
+    expected_arrivals_60min: int = 0
+    current_queue: int = 0
+    doctors_available: int = 1
+    average_service_time: float = 10.0
+    capacity: int = 20
+
+class AdherenceCorrectionRequest(BaseModel):
+    expected_arrivals: int
+    actual_arrivals: int
+    base_capacity: int = 20
+
 @app.get("/health")
 def health():
-    return {
-        "status": "ok",
-        "service": "ml",
-        "crowd_model": crowd_model is not None,
-        "eta_model": eta_model is not None,
-    }
-@app.post("/predict/crowd")
-def crowd(payload: CrowdIn):
-    if crowd_model is None:
-        approx = payload.current_queue + payload.expected_arrivals_30min * 0.7
-        level = "HIGH" if approx > 20 else ("MODERATE" if approx > 10 else "LOW")
-        return {"predicted_crowd": round(approx, 1), "congestion": level, "fallback": True}
-    features = payload.model_dump()
-    if features["historical_average_arrivals"] is None:
-        features["historical_average_arrivals"] = features["expected_arrivals_60min"]
-    return predict_crowd(crowd_model, features)
+    return {"status": "healthy", "eta_model_loaded": eta_model is not None, "crowd_model_loaded": crowd_model is not None}
+
 @app.post("/predict/eta")
-def eta(payload: EtaIn):
+def predict_eta(req: ETAPredictionRequest):
     if eta_model is None:
-        wait = payload.people_ahead * payload.average_service_time / max(payload.doctors_available, 1)
-        return {"estimated_wait_minutes": round(wait, 1), "fallback": True}
-    return predict_eta(eta_model, payload.model_dump())
-@app.post("/predict/update")
-def update(payload: UpdateIn):
-    return adjust_demand(payload.expected_arrivals, payload.actual_arrivals, payload.future_expected)
+        docs = max(1, req.doctors_available)
+        return {"estimated_wait_minutes": round((req.people_ahead * req.average_service_time) / docs), "source": "fallback"}
+    data = req.model_dump()
+    if data["queue_length"] is None:
+        data["queue_length"] = data["people_ahead"] + 1
+    res = run_predict_eta(eta_model, data)
+    res["source"] = "random_forest_regressor"
+    return res
+
+@app.post("/predict/crowd")
+def predict_crowd(req: CrowdPredictionRequest):
+    if crowd_model is None:
+        raise HTTPException(status_code=503, detail="Crowd model not loaded.")
+    data = req.model_dump()
+    cap = data.pop("capacity", 20)
+    return run_predict_crowd(crowd_model, data, capacity=cap)
+
+@app.post("/correct/adherence")
+def correct_adherence(req: AdherenceCorrectionRequest):
+    return correction_engine.adjust_predictions(req.expected_arrivals, req.actual_arrivals, req.base_capacity)
