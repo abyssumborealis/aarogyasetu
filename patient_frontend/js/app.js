@@ -224,6 +224,14 @@ document.addEventListener('click', (e) => {
     return;
   }
 
+  // ---- Location-Based Hospital Discovery: "Use My Location" / "Try Again" / "Refresh Location" ----
+  const useLocationBtn = e.target.closest('#use-my-location-btn');
+  if (useLocationBtn) {
+    e.preventDefault();
+    requestUserLocation();
+    return;
+  }
+
   // ---- Filter Pills in Hospital Directory ----
   const filterPill = e.target.closest('.filter-pills .pill');
   if (filterPill) {
@@ -274,6 +282,41 @@ document.addEventListener('submit', (e) => {
     return;
   }
 });
+
+// --------------------------------------------------------------------------- //
+// Location-Based Hospital Discovery
+// --------------------------------------------------------------------------- //
+// Uses the browser's native Geolocation API only. No external maps/geocoding
+// APIs are used. Coordinates stay in client-side app state (QueueStore) and
+// are never written to the token, patient record, or any URL.
+function requestUserLocation() {
+  if (!('geolocation' in navigator)) {
+    store.setLocationError('Your browser does not support location services. Please browse hospitals manually below.');
+    return;
+  }
+
+  store.setLocationRequesting();
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const { latitude, longitude } = position.coords;
+      store.setLocationAvailable({ lat: latitude, lng: longitude });
+    },
+    (error) => {
+      // GeolocationPositionError.PERMISSION_DENIED === 1
+      if (error && error.code === 1) {
+        store.setLocationDenied('Location access was denied. You can still browse hospitals manually below.');
+      } else {
+        store.setLocationError('We could not detect your location right now. Please browse hospitals manually below.');
+      }
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 5 * 60 * 1000 // allow a cached fix up to 5 min old
+    }
+  );
+}
 
 // --------------------------------------------------------------------------- //
 // Real-Time Search & Filtering in Hospital Directory

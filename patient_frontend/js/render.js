@@ -5,7 +5,7 @@
  */
 
 import { store } from './store.js';
-import { SYSTEM_STATES, HOSPITALS, getHospital, getDepartment } from './data.js';
+import { SYSTEM_STATES, HOSPITALS, getHospital, getDepartment, getHospitalsWithDistance, formatDistance } from './data.js';
 
 export function render() {
   const state = store.getState();
@@ -315,6 +315,8 @@ function renderHospitalsView(state) {
         <p class="page-subtitle">Choose the hospital you plan to visit to view live queue conditions and access admissions.</p>
       </div>
 
+      ${renderLocationDiscoverySection(state)}
+
       <div class="filter-controls-card">
         <div class="search-field-wrap">
           <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -362,6 +364,102 @@ function renderHospitalsView(state) {
       <div class="hospitals-grid" id="hospitals-grid-container">
         ${hospitals.map(h => renderHospitalCard(h)).join('')}
       </div>
+    </div>
+  `;
+}
+
+// --------------------------------------------------------------------------- //
+// Location-Based Hospital Discovery (client-side, browser Geolocation API)
+// --------------------------------------------------------------------------- //
+function renderLocationDiscoverySection(state) {
+  const location = state.location || { status: 'NOT_REQUESTED' };
+
+  if (location.status === 'AVAILABLE' && location.coords) {
+    const nearby = getHospitalsWithDistance(location.coords.lat, location.coords.lng);
+
+    return `
+      <div class="location-discovery-card is-active">
+        <div class="location-discovery-header">
+          <div>
+            <h2 class="location-discovery-title">Hospitals Near You</h2>
+            <p class="location-discovery-subtitle">
+              <span class="location-detected-tag">Location detected ✓</span>
+              Sorted by distance from your current location.
+            </p>
+          </div>
+          <button type="button" id="use-my-location-btn" class="btn btn-secondary btn-sm">↺ Refresh Location</button>
+        </div>
+
+        <div class="nearby-hospitals-list">
+          ${nearby.map((h, i) => renderNearbyHospitalRow(h, i === 0)).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  if (location.status === 'REQUESTING') {
+    return `
+      <div class="location-discovery-card">
+        <div class="location-discovery-header">
+          <div>
+            <h2 class="location-discovery-title">Find a hospital near you</h2>
+            <p class="location-discovery-subtitle">Requesting your location&hellip; check your browser's permission prompt.</p>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" disabled>
+            <span class="pulse-dot"></span> Locating&hellip;
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  if (location.status === 'DENIED' || location.status === 'ERROR') {
+    return `
+      <div class="location-discovery-card">
+        <div class="location-discovery-header">
+          <div>
+            <h2 class="location-discovery-title">Find a hospital near you</h2>
+            <p class="location-discovery-subtitle location-status-message">
+              ${location.errorMessage || 'Location is unavailable. You can still browse hospitals manually below.'}
+            </p>
+          </div>
+          <button type="button" id="use-my-location-btn" class="btn btn-secondary btn-sm">📍 Try Again</button>
+        </div>
+      </div>
+    `;
+  }
+
+  // NOT_REQUESTED — initial state
+  return `
+    <div class="location-discovery-card">
+      <div class="location-discovery-header">
+        <div>
+          <h2 class="location-discovery-title">Find a hospital near you</h2>
+          <p class="location-discovery-subtitle">Use your current location to find hospitals near you.</p>
+        </div>
+        <button type="button" id="use-my-location-btn" class="btn btn-primary btn-sm">📍 Use My Location</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderNearbyHospitalRow(hospital, isNearest) {
+  return `
+    <div class="nearby-hospital-row ${isNearest ? 'is-nearest' : ''}" data-hospital-id="${hospital.id}">
+      <div class="nearby-hospital-info">
+        <div class="nearby-hospital-name-row">
+          <span class="nearby-hospital-name">${hospital.name}</span>
+          ${isNearest ? '<span class="nearest-badge">NEAREST TO YOU</span>' : ''}
+        </div>
+        <div class="nearby-hospital-meta">
+          <span class="nearby-hospital-distance">📍 ${formatDistance(hospital.distanceKm)}</span>
+          <span class="crowd-pill crowd-${hospital.overallCrowd.toLowerCase()}">${hospital.overallCrowd}</span>
+        </div>
+      </div>
+      <a href="#hospital-overview?id=${hospital.id}" class="btn btn-primary btn-sm">
+        Select Hospital
+        <svg class="icon-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+      </a>
     </div>
   `;
 }

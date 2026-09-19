@@ -415,6 +415,131 @@
   background: var(--primary);
 }
 
+/* =========================================================
+   LOCATION-BASED HOSPITAL DISCOVERY
+   ========================================================= */
+
+.location-discovery-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.location-discovery-card.is-active {
+  border-color: rgba(25, 118, 210, 0.35);
+  background: linear-gradient(180deg, var(--primary-light) 0%, var(--surface) 120px);
+}
+
+.location-discovery-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.location-discovery-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.location-discovery-subtitle {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.location-status-message {
+  color: var(--text-secondary);
+  max-width: 520px;
+}
+
+.location-detected-tag {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 650;
+  color: var(--success);
+  background: var(--success-light);
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+}
+
+.nearby-hospitals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.nearby-hospital-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+.nearby-hospital-row.is-nearest {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.10);
+}
+
+.nearby-hospital-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nearby-hospital-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.nearby-hospital-name {
+  font-weight: 650;
+  color: var(--text-primary);
+  font-size: 0.98rem;
+}
+
+.nearest-badge {
+  background: var(--primary);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+}
+
+.nearby-hospital-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.nearby-hospital-distance {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 550;
+}
+
 .hospitals-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));

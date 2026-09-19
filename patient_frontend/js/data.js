@@ -42,6 +42,13 @@ export const CHECKIN_METHODS = {
   WALKIN_QR: 'walkin_qr'
 };
 
+// --------------------------------------------------------------------------- //
+// Location-Based Hospital Discovery — DEMO COORDINATES
+// These latitude/longitude values are SYNTHETIC demo coordinates for this
+// hackathon prototype. They do not represent the real-world location of any
+// actual hospital and exist only to power the proximity/discovery feature.
+// --------------------------------------------------------------------------- //
+
 export const HOSPITALS = [
   {
     id: 'city-hospital',
@@ -52,6 +59,9 @@ export const HOSPITALS = [
     address: '1200 Health Boulevard, Central Metro',
     hours: '24/7 Emergency & Acute Care | Outpatient: 07:00 – 19:00',
     status: 'Open 24/7',
+    // DEMO coordinates (synthetic, not a real address)
+    lat: 28.6139,
+    lng: 77.2090,
     isOpen: true,
     overallCrowd: 'Moderate',
     checkedInCount: 87,
@@ -166,6 +176,9 @@ export const HOSPITALS = [
     address: '450 Innovation Parkway, Northside',
     hours: 'Outpatient: 08:00 – 20:00 | Urgent Care 24/7',
     status: 'Open',
+    // DEMO coordinates (synthetic, not a real address)
+    lat: 28.6448,
+    lng: 77.2167,
     isOpen: true,
     overallCrowd: 'Low',
     checkedInCount: 42,
@@ -216,6 +229,9 @@ export const HOSPITALS = [
     address: '88 Heritage Square, Downtown Center',
     hours: '24/7 Comprehensive Emergency & Clinical Center',
     status: 'Open 24/7',
+    // DEMO coordinates (synthetic, not a real address)
+    lat: 28.6304,
+    lng: 77.2177,
     isOpen: true,
     overallCrowd: 'High',
     checkedInCount: 146,
@@ -250,6 +266,9 @@ export const HOSPITALS = [
     address: '77 Silicon Way, West End Tech Hub',
     hours: 'Outpatient: 08:30 – 18:30',
     status: 'Open',
+    // DEMO coordinates (synthetic, not a real address)
+    lat: 28.5921,
+    lng: 77.1660,
     isOpen: true,
     overallCrowd: 'Low',
     checkedInCount: 29,
@@ -285,4 +304,56 @@ export function getDepartment(hospitalId, deptId) {
   const hospital = getHospital(hospitalId);
   if (!hospital) return null;
   return hospital.departments.find(d => d.id === deptId || d.numeric_id === Number(deptId)) || hospital.departments[0];
+}
+
+// --------------------------------------------------------------------------- //
+// Location-Based Hospital Discovery — Distance Utilities
+// --------------------------------------------------------------------------- //
+
+const EARTH_RADIUS_KM = 6371;
+
+/**
+ * Great-circle distance between two lat/lng points using the Haversine formula.
+ * Returns distance in kilometers.
+ */
+export function haversineDistanceKm(lat1, lon1, lat2, lon2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return EARTH_RADIUS_KM * c;
+}
+
+/**
+ * Returns HOSPITALS annotated with distanceKm from the given coordinates,
+ * sorted ascending by proximity (nearest first). Hospitals without valid
+ * lat/lng are excluded.
+ */
+export function getHospitalsWithDistance(userLat, userLng) {
+  return HOSPITALS
+    .filter(h => typeof h.lat === 'number' && typeof h.lng === 'number')
+    .map(h => ({
+      ...h,
+      distanceKm: haversineDistanceKm(userLat, userLng, h.lat, h.lng)
+    }))
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+}
+
+/**
+ * Formats a distance in kilometers for display, e.g. "650 m away" or "2.4 km away".
+ */
+export function formatDistance(distanceKm) {
+  if (typeof distanceKm !== 'number' || Number.isNaN(distanceKm)) return '';
+  if (distanceKm < 1) {
+    return `${Math.round(distanceKm * 1000)} m away`;
+  }
+  return `${distanceKm.toFixed(1)} km away`;
 }

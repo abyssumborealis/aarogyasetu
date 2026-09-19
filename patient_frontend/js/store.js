@@ -109,7 +109,15 @@ class QueueStore {
       audioChimeEnabled: true,
       simDockOpen: false,
       activeModal: null,
-      toasts: []
+      toasts: [],
+
+      // Location-Based Hospital Discovery (client-side only, never persisted
+      // or sent to the backend; see requestUserLocation() in app.js)
+      location: {
+        status: 'NOT_REQUESTED', // NOT_REQUESTED | REQUESTING | AVAILABLE | DENIED | ERROR
+        coords: null,            // { lat, lng } once AVAILABLE
+        errorMessage: null
+      }
     };
 
     this.state = JSON.parse(JSON.stringify(this.defaultState));
@@ -427,6 +435,37 @@ class QueueStore {
 
   closeModal() {
     this.state.activeModal = null;
+    this.notify();
+  }
+
+  // ------------------------------------------------------------------- //
+  // Location-Based Hospital Discovery
+  // ------------------------------------------------------------------- //
+  setLocationRequesting() {
+    this.state.location = { status: 'REQUESTING', coords: null, errorMessage: null };
+    this.notify();
+  }
+
+  setLocationAvailable(coords) {
+    this.state.location = { status: 'AVAILABLE', coords, errorMessage: null };
+    this.notify();
+  }
+
+  setLocationDenied(message) {
+    this.state.location = {
+      status: 'DENIED',
+      coords: null,
+      errorMessage: message || 'Location access was denied.'
+    };
+    this.notify();
+  }
+
+  setLocationError(message) {
+    this.state.location = {
+      status: 'ERROR',
+      coords: null,
+      errorMessage: message || 'Unable to determine your location.'
+    };
     this.notify();
   }
 
