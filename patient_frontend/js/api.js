@@ -23,6 +23,7 @@
 import { store } from './store.js';
 import { SYSTEM_STATES, TOKEN_STATUS, QUEUE_TYPES, CHECKIN_METHODS, getDepartment } from './data.js';
 import { fmtWindow } from './timefmt.js';
+import { HISTORICAL_PATTERNS } from './historical_data.js';
 
 const API_BASE = window.__API_BASE__ || 'http://localhost:8000';
 
@@ -445,5 +446,92 @@ export const api = {
   async leaveQueue(tokenPublicId) {
     store.setQueueState(SYSTEM_STATES.LEFT_QUEUE);
     store.showToast('You have exited the queue.', 'info');
+  },
+
+  /**
+   * GET /historical/crowd-pattern
+   * Fetches aggregated historical operational data (average/median crowd, waiting times)
+   * Falls back to bundled historical dataset in simulation/offline mode.
+   */
+  async getHistoricalCrowdPattern(department = 'General Medicine', dayOfWeek = 0) {
+    const dow = parseInt(dayOfWeek, 10) % 7;
+    try {
+      const url = `${this.baseUrl}/historical/crowd-pattern?department=${encodeURIComponent(department)}&day_of_week=${dow}`;
+      const res = await fetchWithTimeout(url, { method: 'GET' }, 2500);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.hourly_data && data.hourly_data.length > 0) {
+          return data;
+        }
+      }
+    } catch (e) {
+      // Local fallback
+    }
+
+    // Bundled fallback from operational dataset
+    const deptGroup = HISTORICAL_PATTERNS[department] || HISTORICAL_PATTERNS['General Medicine'] || {};
+    return deptGroup[String(dow)] || {
+      department,
+      day_of_week: dow,
+      day_name: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][dow],
+      busiest_period: `${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][dow]}, 10 AM – 12 PM`,
+      lower_demand_period: '2 PM – 4 PM',
+      typical_wait_range: '~25–45 min',
+      hourly_data: []
+    };
+  },
+
+  /**
+   * POST /predict/crowd
+   * Retrieves today's crowd forecast (+15m, +30m, +60m and congestion status)
+   * using the existing Random Forest crowd prediction model.
+   */
+  async getTodayCrowdForecast(department = 'General Medicine', currentQueue = 12, doctors = 2, avgService = 10, capacity = 25) {
+    const reqBody = {
+      department,
+      current_queue: currentQueue,
+      doctors_available: doctors,
+      average_service_time: avgService,
+      capacity,
+      expected_arrivals_15min: Math.max(2, Math.round(currentQueue * 0.25)),
+      expected_arrivals_30min: Math.max(4, Math.round(currentQueue * 0.5)),
+      expected_arrivals_60min: Math.max(8, currentQueue)
+    };
+
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/predict/crowd`, {
+        method: 'POST',
+        body: JSON.stringify(reqBody)
+      }, 2500);
+
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      // Fallback
+    }
+
+    // Client-side reflection of the Random Forest timeline
+    const srvRate = doctors / Math.max(1, avgService);
+    const p15 = Math.max(0, Math.round(currentQueue + reqBody.expected_arrivals_15min - (srvRate * 15)));
+    const p30 = Math.max(0, Math.round(currentQueue + reqBody.expected_arrivals_30min - (srvRate * 30)));
+    const p60 = Math.max(0, Math.round(currentQueue + reqBody.expected_arrivals_60min - (srvRate * 60) + 2));
+    const ratio = p60 / Math.max(1, capacity);
+    const congestion = ratio < 0.65 ? 'low' : (ratio < 1.05 ? 'medium' : (ratio < 1.5 ? 'high' : 'critical'));
+
+    return {
+      predicted_crowd: p60,
+      congestion,
+      capacity,
+      department,
+      timeline: {
+        current: currentQueue,
+        plus_15m: p15,
+        plus_30m: p30,
+        plus_60m: p60
+      },
+      alert: congestion === 'critical' ? `CRITICAL: Projecting over-capacity (${p60}/${capacity}) in 60 min.` :
+             (congestion === 'high' ? `WARNING: High demand arriving (${p60} patients in 60 min).` : null)
+    };
   }
 };

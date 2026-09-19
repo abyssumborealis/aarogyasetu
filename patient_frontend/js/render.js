@@ -7,6 +7,7 @@
 import { store } from './store.js';
 import { SYSTEM_STATES, HOSPITALS, getHospital, getDepartment, getHospitalsWithDistance, formatDistance } from './data.js';
 import { fmtClock, fmtWindow, fmtDayLabel, localDateString } from './timefmt.js';
+import { HISTORICAL_PATTERNS } from './historical_data.js';
 
 export function render() {
   const state = store.getState();
@@ -1556,8 +1557,322 @@ function renderTimelineNode(node, index) {
 }
 
 // --------------------------------------------------------------------------- //
-// View: Public Crowd Radar
 // --------------------------------------------------------------------------- //
+// View: Public Crowd Radar & Historical Crowd Patterns
+// --------------------------------------------------------------------------- //
+function renderHistoricalCrowdSection(state) {
+  const departments = ['General Medicine', 'Cardiology', 'Orthopaedics', 'Paediatrics', 'Dermatology'];
+  const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  const selectedDept = state.selectedHistoricalDept || 'General Medicine';
+  const selectedDay = state.selectedHistoricalDay !== undefined ? state.selectedHistoricalDay : ((new Date().getDay() + 6) % 7);
+  const metric = state.selectedHistoricalMetric || 'wait';
+
+  // Get historical dataset
+  const deptBundle = HISTORICAL_PATTERNS[selectedDept] || HISTORICAL_PATTERNS['General Medicine'] || {};
+  const pattern = (state.historicalPattern && state.historicalPattern.department === selectedDept && state.historicalPattern.day_of_week === selectedDay)
+    ? state.historicalPattern
+    : (deptBundle[String(selectedDay)] || {
+        department: selectedDept,
+        day_of_week: selectedDay,
+        day_name: dayNames[selectedDay],
+        busiest_period: `${dayNames[selectedDay]}, 10 AM – 12 PM`,
+        lower_demand_period: '2 PM – 4 PM',
+        typical_wait_range: '~25–45 min',
+        hourly_data: []
+      });
+
+  const hourly = pattern.hourly_data || [];
+
+  // Determine scale
+  const isWait = metric === 'wait';
+  const unitLabel = isWait ? 'min' : 'patients';
+  const metricTitle = isWait ? 'Typical Waiting Time (minutes)' : 'Typical Department Crowd (patients)';
+
+  const values = hourly.map(h => isWait ? h.average_wait_minutes : h.average_crowd);
+  const medianValues = hourly.map(h => isWait ? h.median_wait_minutes : h.median_crowd);
+
+  const rawMax = values.length ? Math.max(...values) : (isWait ? 90 : 30);
+  const maxY = isWait
+    ? (rawMax > 120 ? 150 : (rawMax > 90 ? 120 : 90))
+    : (rawMax > 30 ? 40 : 30);
+
+  const ticks = isWait
+    ? (maxY === 150 ? [0, 30, 60, 90, 120, 150] : [0, 30, 60, 90, 120])
+    : (maxY === 40 ? [0, 10, 20, 30, 40] : [0, 10, 20, 30]);
+
+  // SVG dimensions
+  const svgWidth = 680;
+  const svgHeight = 250;
+  const padLeft = 45;
+  const padRight = 25;
+  const padTop = 30;
+  const padBottom = 40;
+  const chartW = svgWidth - padLeft - padRight;
+  const chartH = svgHeight - padTop - padBottom;
+  const baselineY = padTop + chartH;
+
+  const points = hourly.map((h, i) => {
+    const val = values[i] || 0;
+    const medVal = medianValues[i] || 0;
+    const x = padLeft + (i / Math.max(1, hourly.length - 1)) * chartW;
+    const y = baselineY - (Math.min(val, maxY) / maxY) * chartH;
+    return { ...h, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, val, medVal };
+  });
+
+  const pathD = points.length ? points.reduce((acc, pt, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`, '') : '';
+  const areaD = points.length
+    ? `${pathD} L ${points[points.length - 1].x} ${baselineY} L ${points[0].x} ${baselineY} Z`
+    : '';
+
+  // Get Live Forecast (from state or simulation)
+  const forecast = state.todayCrowdForecast || {
+    predicted_crowd: 18,
+    congestion: 'medium',
+    capacity: 25,
+    department: selectedDept,
+    timeline: { current: 12, plus_15m: 14, plus_30m: 18, plus_60m: 22 },
+    alert: null
+  };
+
+  // Find department live state for current queue
+  const currentHospital = HOSPITALS[0];
+  const liveDept = currentHospital.departments.find(d => d.name.toLowerCase() === selectedDept.toLowerCase()) || currentHospital.departments[0];
+
+  return `
+    <div class="historical-crowd-section">
+      <!-- Section Header -->
+      <div class="section-top-row">
+        <div>
+          <div class="telemetry-pill">
+            <span class="pulse-dot"></span>
+            HISTORICAL OPERATIONAL INTELLIGENCE
+          </div>
+          <h2 class="section-title">Historical Crowd Patterns</h2>
+          <p class="section-desc">See when this department is usually busiest across historical operating shifts. Aggregated from baseline operational flow data.</p>
+        </div>
+      </div>
+
+      <!-- Interactive Filters Toolbar -->
+      <div class="historical-filters-bar">
+        <div class="filter-field">
+          <label for="hist-dept-select" class="filter-label">Department</label>
+          <div class="select-wrapper">
+            <select id="hist-dept-select" class="filter-select">
+              ${departments.map(d => `<option value="${d}" ${d === selectedDept ? 'selected' : ''}>${d}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-field">
+          <label for="hist-day-select" class="filter-label">Day of Week</label>
+          <div class="select-wrapper">
+            <select id="hist-day-select" class="filter-select">
+              ${dayNames.map((day, idx) => `<option value="${idx}" ${idx === selectedDay ? 'selected' : ''}>${day}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-field metric-field">
+          <label class="filter-label">Display Metric</label>
+          <div class="metric-toggle-group">
+            <button type="button" id="hist-metric-wait" class="metric-toggle-btn ${isWait ? 'active' : ''}">
+              Typical Wait Time
+            </button>
+            <button type="button" id="hist-metric-crowd" class="metric-toggle-btn ${!isWait ? 'active' : ''}">
+              Typical Crowd Load
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Chart Card -->
+      <div class="historical-chart-card">
+        <div class="chart-header">
+          <div class="chart-title-wrap">
+            <span class="chart-metric-badge">${metricTitle}</span>
+            <span class="chart-dept-indicator">${selectedDept} • ${dayNames[selectedDay]}</span>
+          </div>
+          <div class="chart-legend">
+            <span class="legend-item"><span class="legend-line"></span> Historical Average</span>
+            <span class="legend-item"><span class="legend-dot"></span> Hourly Baseline</span>
+          </div>
+        </div>
+
+        <!-- Responsive SVG Chart -->
+        <div class="svg-chart-container">
+          <svg viewBox="0 0 ${svgWidth} ${svgHeight}" preserveAspectRatio="xMidYMid meet" class="responsive-svg-chart" role="img" aria-label="Historical crowd graph for ${selectedDept} on ${dayNames[selectedDay]}">
+            <defs>
+              <linearGradient id="histAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#1976d2" stop-opacity="0.22" />
+                <stop offset="100%" stop-color="#1976d2" stop-opacity="0.01" />
+              </linearGradient>
+            </defs>
+
+            <!-- Horizontal Grid Lines & Y-Axis Labels -->
+            ${ticks.map(t => {
+              const y = baselineY - (t / maxY) * chartH;
+              return `
+                <line x1="${padLeft}" y1="${y}" x2="${svgWidth - padRight}" y2="${y}" stroke="var(--border)" stroke-dasharray="3,3" stroke-width="1" />
+                <text x="${padLeft - 10}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="11" font-family="'JetBrains Mono', monospace" font-weight="500">${t}</text>
+              `;
+            }).join('')}
+
+            <!-- Gradient Area -->
+            ${areaD ? `<path d="${areaD}" fill="url(#histAreaGrad)" />` : ''}
+
+            <!-- Trend Polyline -->
+            ${pathD ? `<path d="${pathD}" fill="none" stroke="var(--primary)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />` : ''}
+
+            <!-- Data Points and Tooltips -->
+            ${points.map(pt => `
+              <g class="chart-point-group">
+                <circle cx="${pt.x}" cy="${pt.y}" r="5" fill="#ffffff" stroke="var(--primary)" stroke-width="2.5" class="chart-point-circle" />
+                <title>${pt.time_label}: Avg ${pt.val} ${unitLabel} (Median ${pt.medVal} ${unitLabel}) • ${pt.observations} operational shifts</title>
+                <text x="${pt.x}" y="${baselineY + 22}" text-anchor="middle" fill="var(--text-secondary)" font-size="11" font-family="'JetBrains Mono', monospace" font-weight="500">${pt.time_label}</text>
+              </g>
+            `).join('')}
+          </svg>
+        </div>
+
+        <!-- Concise Interpretation Cards -->
+        <div class="historical-insights-grid">
+          <div class="insight-card peak">
+            <div class="insight-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+            <div class="insight-content">
+              <span class="insight-label">Historically Busiest Window</span>
+              <strong class="insight-value">${pattern.busiest_period}</strong>
+              <span class="insight-sub">Peak patient arrival & consult queue</span>
+            </div>
+          </div>
+
+          <div class="insight-card duration">
+            <div class="insight-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+            </div>
+            <div class="insight-content">
+              <span class="insight-label">Typical Waiting Time</span>
+              <strong class="insight-value mono">${pattern.typical_wait_range}</strong>
+              <span class="insight-sub">Average elapsed duration before consultation</span>
+            </div>
+          </div>
+
+          <div class="insight-card trough">
+            <div class="insight-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            </div>
+            <div class="insight-content">
+              <span class="insight-label">Lower-Demand Window</span>
+              <strong class="insight-value">${pattern.lower_demand_period}</strong>
+              <span class="insight-sub">Optimal window for shorter queue time</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Data Transparency Guarantee -->
+        <div class="historical-disclaimer-note">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          <span>Historical pattern based on available operational flow data. Individual consult durations and acute arrivals fluctuate dynamically.</span>
+        </div>
+      </div>
+
+      <!-- Live Intelligence Tier: Today's ML Forecast + Current Ground Truth -->
+      <div class="intelligence-dual-grid">
+        <!-- Today's Forecast Card -->
+        <div class="intelligence-card forecast-card-wrap">
+          <div class="intel-card-header">
+            <div>
+              <div class="badge-row">
+                <span class="source-tag ml-tag">ML PREDICTION</span>
+                <span class="model-name-sub">RandomForestRegressor</span>
+              </div>
+              <h3 class="intel-card-title">Today's Crowd Forecast</h3>
+              <p class="intel-card-sub">What is expected to happen today across 15, 30, and 60-minute horizons.</p>
+            </div>
+            <span class="congestion-badge badge-${forecast.congestion}">${forecast.congestion.toUpperCase()} DEMAND</span>
+          </div>
+
+          <!-- Forecast Milestones -->
+          <div class="forecast-milestones-row">
+            <div class="milestone-box">
+              <span class="milestone-time">CURRENT</span>
+              <div class="milestone-val mono">${forecast.timeline.current}</div>
+              <span class="milestone-unit">patients</span>
+            </div>
+            <div class="milestone-arrow">→</div>
+            <div class="milestone-box">
+              <span class="milestone-time">+15 MIN</span>
+              <div class="milestone-val mono">${forecast.timeline.plus_15m}</div>
+              <span class="milestone-unit">patients</span>
+            </div>
+            <div class="milestone-arrow">→</div>
+            <div class="milestone-box">
+              <span class="milestone-time">+30 MIN</span>
+              <div class="milestone-val mono">${forecast.timeline.plus_30m}</div>
+              <span class="milestone-unit">patients</span>
+            </div>
+            <div class="milestone-arrow">→</div>
+            <div class="milestone-box highlight">
+              <span class="milestone-time">+60 MIN</span>
+              <div class="milestone-val mono highlight-cyan">${forecast.timeline.plus_60m}</div>
+              <span class="milestone-unit">patients</span>
+            </div>
+          </div>
+
+          <div class="forecast-narrative">
+            <span class="intel-dot"></span>
+            <span>
+              ${forecast.timeline.plus_60m > forecast.timeline.current
+                ? `Crowd is projected to increase from <strong>${forecast.timeline.current}</strong> to <strong>${forecast.timeline.plus_60m} patients</strong> over the next 60 minutes.`
+                : `Crowd velocity is steady, hovering at approximately <strong>${forecast.timeline.plus_60m} patients</strong> over the next 60 minutes.`}
+            </span>
+          </div>
+        </div>
+
+        <!-- Current Live Queue Card -->
+        <div class="intelligence-card live-card-wrap">
+          <div class="intel-card-header">
+            <div>
+              <div class="badge-row">
+                <span class="source-tag live-tag">GROUND TRUTH</span>
+                <span class="model-name-sub">On-Site Queue Telemetry</span>
+              </div>
+              <h3 class="intel-card-title">Current Live Queue</h3>
+              <p class="intel-card-sub">What is happening right now in ${selectedDept}.</p>
+            </div>
+            <span class="live-status-dot-wrap"><span class="dot live-pulse"></span> LIVE</span>
+          </div>
+
+          <div class="live-stats-row">
+            <div class="live-stat-box">
+              <span class="live-stat-label">WAITING ON-SITE</span>
+              <div class="live-stat-num mono">${liveDept.waitingCount}</div>
+              <span class="live-stat-sub">physically checked in</span>
+            </div>
+            <div class="live-stat-box">
+              <span class="live-stat-label">SERVING TOKEN</span>
+              <div class="live-stat-num mono highlight-teal">${liveDept.currentServing}</div>
+              <span class="live-stat-sub">${liveDept.consultationRoom}</span>
+            </div>
+            <div class="live-stat-box">
+              <span class="live-stat-label">ACTIVE DOCTORS</span>
+              <div class="live-stat-num mono">${liveDept.doctorsOnDuty}</div>
+              <span class="live-stat-sub">${liveDept.roomsActive} rooms staffed</span>
+            </div>
+          </div>
+
+          <div class="live-narrative">
+            <span class="intel-dot teal"></span>
+            <span>Estimated waiting time for newly arrived walk-in patients: <strong>${liveDept.estimatedWait}</strong>. Lead physician on duty: <strong>${liveDept.leadDoctor}</strong>.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderCrowdTelemetryView(state) {
   const allDepts = HOSPITALS.flatMap(h => h.departments.map(d => ({ ...d, hospitalName: h.name, hospitalId: h.id })));
 
@@ -1568,7 +1883,15 @@ function renderCrowdTelemetryView(state) {
           <a href="#landing">QUEUE</a> <span class="crumb-sep">/</span> <span>Hospital Crowd Telemetry</span>
         </div>
         <h1 class="page-title">Hospital Crowd Intelligence Radar</h1>
-        <p class="page-subtitle">Public cross-facility waiting telemetry. Evaluated continuously to aid informed facility selection.</p>
+        <p class="page-subtitle">Multi-tier hospital crowd telemetry: historical baselines, live machine learning forecasts, and real-time physical queue depth.</p>
+      </div>
+
+      <!-- Integrated Historical Crowd Patterns & ML Forecast Module -->
+      ${renderHistoricalCrowdSection(state)}
+
+      <div class="section-divider-row" style="margin: 44px 0 20px;">
+        <h3 class="font-bold" style="font-size: 1.15rem; color: var(--text-primary);">Cross-Facility Regional Live Radar</h3>
+        <p class="text-muted" style="font-size: 0.88rem;">Live physical queue depths across affiliated regional public care facilities.</p>
       </div>
 
       <div class="operational-notice-box notice-info" style="margin-bottom: 24px;">

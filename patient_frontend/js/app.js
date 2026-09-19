@@ -43,6 +43,19 @@ function handleRoute() {
 
   store.setView(routePart, params);
   window.scrollTo({ top: 0, behavior: 'instant' });
+
+  // Pre-load historical crowd patterns & live forecast when viewing crowd telemetry
+  if (routePart === 'crowd-telemetry') {
+    const s = store.getState();
+    const dept = s.selectedHistoricalDept || 'General Medicine';
+    const day = s.selectedHistoricalDay !== undefined ? s.selectedHistoricalDay : ((new Date().getDay() + 6) % 7);
+    api.getHistoricalCrowdPattern(dept, day).then(pattern => {
+      store.setHistoricalPattern(pattern);
+    });
+    api.getTodayCrowdForecast(dept).then(forecast => {
+      store.setTodayCrowdForecast(forecast);
+    });
+  }
 }
 
 window.addEventListener('hashchange', handleRoute);
@@ -275,6 +288,21 @@ document.addEventListener('click', (e) => {
     }
     return;
   }
+
+  // ---- Historical Metric Toggle Buttons ----
+  const metricWaitBtn = e.target.closest('#hist-metric-wait');
+  if (metricWaitBtn) {
+    e.preventDefault();
+    store.setHistoricalMetric('wait');
+    return;
+  }
+
+  const metricCrowdBtn = e.target.closest('#hist-metric-crowd');
+  if (metricCrowdBtn) {
+    e.preventDefault();
+    store.setHistoricalMetric('crowd');
+    return;
+  }
 });
 
 // --------------------------------------------------------------------------- //
@@ -289,6 +317,23 @@ document.addEventListener('change', (e) => {
     store.setDesiredTime(e.target.value);
   } else if (e.target.id === 'department-select') {
     store.updateRegistrationDraft({ departmentId: e.target.value });
+  } else if (e.target.id === 'hist-dept-select') {
+    const dept = e.target.value;
+    store.setHistoricalDept(dept);
+    const day = store.getState().selectedHistoricalDay;
+    api.getHistoricalCrowdPattern(dept, day).then(pattern => {
+      store.setHistoricalPattern(pattern);
+    });
+    api.getTodayCrowdForecast(dept).then(forecast => {
+      store.setTodayCrowdForecast(forecast);
+    });
+  } else if (e.target.id === 'hist-day-select') {
+    const day = parseInt(e.target.value, 10);
+    store.setHistoricalDay(day);
+    const dept = store.getState().selectedHistoricalDept;
+    api.getHistoricalCrowdPattern(dept, day).then(pattern => {
+      store.setHistoricalPattern(pattern);
+    });
   }
 });
 

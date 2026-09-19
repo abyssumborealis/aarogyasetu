@@ -128,7 +128,14 @@ class QueueStore {
         status: 'NOT_REQUESTED', // NOT_REQUESTED | REQUESTING | AVAILABLE | DENIED | ERROR
         coords: null,            // { lat, lng } once AVAILABLE
         errorMessage: null
-      }
+      },
+
+      // Historical Crowd Patterns & Today's Forecast
+      selectedHistoricalDept: 'General Medicine',
+      selectedHistoricalDay: (new Date().getDay() + 6) % 7, // 0 = Monday, 6 = Sunday
+      selectedHistoricalMetric: 'wait', // 'wait' | 'crowd'
+      historicalPattern: null,
+      todayCrowdForecast: null
     };
 
     this.state = JSON.parse(JSON.stringify(this.defaultState));
@@ -518,6 +525,32 @@ class QueueStore {
       coords: null,
       errorMessage: message || 'Unable to determine your location.'
     };
+    this.notify();
+  }
+
+  // Historical Crowd Pattern & Live Forecast Actions ------------------ //
+  setHistoricalDept(dept) {
+    this.state.selectedHistoricalDept = dept;
+    this.notify();
+  }
+
+  setHistoricalDay(dayOfWeek) {
+    this.state.selectedHistoricalDay = parseInt(dayOfWeek, 10) % 7;
+    this.notify();
+  }
+
+  setHistoricalMetric(metric) {
+    this.state.selectedHistoricalMetric = metric;
+    this.notify();
+  }
+
+  setHistoricalPattern(pattern) {
+    this.state.historicalPattern = pattern;
+    this.notify();
+  }
+
+  setTodayCrowdForecast(forecast) {
+    this.state.todayCrowdForecast = forecast;
     this.notify();
   }
 
