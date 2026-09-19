@@ -28,6 +28,7 @@ services:
       db:
         condition: service_healthy
     environment:
+      ROOT_PATH: /api
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-queue_user}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-queue_db}
       APP_ENV: ${APP_ENV:-production}          # production = refuses to start with a default JWT secret or CORS "*"
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}

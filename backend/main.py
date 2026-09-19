@@ -8,6 +8,7 @@ Env vars: see config.py (DATABASE_URL, JWT_SECRET, NOTIFY_CHANNELS, TWILIO_*, ..
 """
 import logging
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,11 +35,8 @@ async def lifespan(app: FastAPI):
     scheduler.stop()
 
 
-app = FastAPI(
-    title="Smart Hospital Queue Management System",
-    version="0.2.0",
-    lifespan=lifespan,
-)
+app = FastAPI(title="Smart Hospital Queue Management System", version="0.2.0",
+              lifespan=lifespan, root_path=os.getenv("ROOT_PATH", ""))
 
 # Wide open for local dev with the patient/admin frontends on different ports.
 # Lock this down to your real frontend origins before deploying.
