@@ -178,6 +178,34 @@ class AlertSeverity(str, enum.Enum):
     CRITICAL = "critical"
 
 
+class NotificationType(str, enum.Enum):
+    TOKEN_ISSUED = "token_issued"              # virtual token created: told when to report
+    REPORT_REMINDER = "report_reminder"        # "leave soon" nudge before report_by_at
+    REPORT_NOW = "report_now"                  # report_by_at has arrived
+    REPORT_LAST_CALL = "report_last_call"      # close to report_deadline_at
+    REPORT_TIME_CHANGED = "report_time_changed"  # queue moved, reporting window re-planned
+    CHECKED_IN = "checked_in"                  # entered the physical queue
+    CALLED = "called"                          # doctor called them
+    CALL_REMINDER = "call_reminder"            # called but hasn't shown up yet
+    REQUEUED = "requeued"                      # missed a call, sent to back of the line
+    TOKEN_LAPSED = "token_lapsed"              # closed as NO_SHOW
+    REINSTATED = "reinstated"                  # staff put a no-show token back in the queue
+
+
+class NotificationChannel(str, enum.Enum):
+    IN_APP = "in_app"
+    SMS = "sms"
+    PUSH = "push"
+    EMAIL = "email"
+
+
+class NotificationStatus(str, enum.Enum):
+    PENDING = "pending"
+    SENT = "sent"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 def _enum(py_enum: type[enum.Enum], name: str) -> Enum:
     """String-backed enum stored as VARCHAR with a CHECK constraint."""
     return Enum(
@@ -238,6 +266,10 @@ class Department(TimestampMixin, Base):
         Integer, default=10, server_default="10", nullable=False
     )
     max_daily_tokens: Mapped[Optional[int]] = mapped_column(Integer)
+    # How long a virtual patient has, after report_by_at, before their token lapses to NO_SHOW.
+    report_grace_minutes: Mapped[int] = mapped_column(
+        Integer, default=20, server_default="20", nullable=False
+    )
     is_active: Mapped[bool] = mapped_column(
         Boolean, server_default=expression.true(), nullable=False
     )
@@ -459,6 +491,24 @@ class Token(Base):
     position_at_issue: Mapped[Optional[int]] = mapped_column(Integer)
     predicted_wait_minutes: Mapped[Optional[int]] = mapped_column(Integer)
 
+    # --- ETA feature snapshots, copied onto queue_history once the token finishes ------- #
+    virtual_queue_length_at_issue: Mapped[Optional[int]] = mapped_column(Integer)
+    physical_queue_length_at_issue: Mapped[Optional[int]] = mapped_column(Integer)
+    physical_queue_length_at_checkin: Mapped[Optional[int]] = mapped_column(Integer)
+    doctors_available_at_issue: Mapped[Optional[int]] = mapped_column(Integer)
+
+    # --- reporting window (virtual tokens only) + call timing --------------------------- #
+    # When we currently expect this token to actually be called (re-planned as the queue moves)
+    expected_call_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # "Please be at the hospital by this time" - shown to the patient, drives REPORT_* notifications
+    report_by_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # Check in by this time or the token lapses to NO_SHOW (report_by_at + department's grace window)
+    report_deadline_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    # How many times this token has been called and the patient wasn't there (see mark_absent()).
+    # Requeued while <= settings.max_absent_recalls, NO_SHOW once it goes over.
+    absence_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+
     patient: Mapped["Patient"] = relationship(back_populates="tokens")
     department: Mapped["Department"] = relationship(back_populates="tokens")
     doctor: Mapped[Optional["Doctor"]] = relationship(back_populates="tokens")
@@ -656,4 +706,58 @@ class Alert(Base):
 
     __table_args__ = (
         Index("ix_alerts_hospital_open", "hospital_id", "is_resolved", "created_at"),
+    )
+
+
+class Notification(Base):
+    """
+    Outbox row: one per (token, notification type, channel). `in_app` rows need no delivery -
+    they're simply visible in the patient's inbox once send_at has passed (see services/notify.py).
+    Other channels are sent by dispatch_due() via a registered sender (e.g. Twilio for SMS).
+    """
+
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(
+        ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("tokens.id", ondelete="CASCADE"), index=True
+    )
+    type: Mapped[NotificationType] = mapped_column(
+        _enum(NotificationType, "notification_type"), nullable=False
+    )
+    channel: Mapped[NotificationChannel] = mapped_column(
+        _enum(NotificationChannel, "notification_channel"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    send_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[NotificationStatus] = mapped_column(
+        _enum(NotificationStatus, "notification_status"),
+        default=NotificationStatus.PENDING,
+        server_default=NotificationStatus.PENDING.value,
+        nullable=False,
+    )
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))  # in_app inbox only
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    last_error: Mapped[Optional[str]] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        Index("ix_notifications_patient_inbox", "patient_id", "channel", "send_at"),
+        Index("ix_notifications_dispatch_due", "status", "send_at"),
+        # One pending message per (token, type, channel) at a time - enqueue() relies on this to
+        # silently drop duplicate reminders instead of stacking them up.
+        Index(
+            "uq_notifications_pending_dedup",
+            "token_id", "type", "channel",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+            sqlite_where=text("status = 'pending'"),
+        ),
     )
