@@ -1,0 +1,635 @@
+/* =========================================================
+   QUEUE — LIGHT HEALTHCARE DESIGN SYSTEM
+   ========================================================= */
+
+:root {
+  /* Backgrounds */
+  --bg-primary: #f7f9fc;
+  --bg-secondary: #eef3f8;
+  --surface: #ffffff;
+  --surface-hover: #f8fafc;
+
+  /* Text */
+  --text-primary: #172033;
+  --text-secondary: #5f6b7a;
+  --text-muted: #8994a3;
+
+  /* Brand */
+  --primary: #1976d2;
+  --primary-dark: #125ca8;
+  --primary-light: #e8f2fc;
+
+  /* Healthcare accent */
+  --teal: #00897b;
+  --teal-light: #e7f6f3;
+
+  /* Status */
+  --success: #159570;
+  --success-light: #e9f7f2;
+
+  --warning: #d98b16;
+  --warning-light: #fff5df;
+
+  --danger: #d94b4b;
+  --danger-light: #fdecec;
+
+  /* Borders */
+  --border: #e2e8f0;
+  --border-light: #edf1f5;
+
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(25, 45, 75, 0.05);
+  --shadow-md: 0 8px 24px rgba(25, 45, 75, 0.08);
+  --shadow-lg: 0 16px 40px rgba(25, 45, 75, 0.10);
+
+  /* Radius */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Layout & System Bridges */
+  --bg-foundation: var(--bg-primary);
+  --bg-surface-1: var(--surface);
+  --bg-surface-2: var(--bg-secondary);
+  --bg-surface-3: #e5edf5;
+  --bg-surface-hover: var(--surface-hover);
+
+  --border-subtle: var(--border-light);
+  --border-medium: var(--border);
+  --border-bright: #cbd5e1;
+  --border-focus: var(--primary);
+
+  --accent-cyan: var(--primary);
+  --accent-cyan-glow: var(--primary-light);
+  --accent-emerald: var(--success);
+  --accent-emerald-glow: var(--success-light);
+  --accent-blue: var(--primary);
+  --accent-amber: var(--warning);
+  --accent-amber-glow: var(--warning-light);
+  --accent-red: var(--danger);
+  --accent-red-glow: var(--danger-light);
+  --accent-purple: #7c3aed;
+  --accent-purple-glow: #f5f3ff;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Roboto Mono', monospace;
+
+  --header-height: 68px;
+  --max-width: 1240px;
+  --max-width-content: 880px;
+
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* =========================================================
+   GLOBAL RESET & FOUNDATIONS
+   ========================================================= */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  text-shadow: none;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 15px;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  overflow-x: hidden;
+  padding-bottom: 76px; /* Space for simulation dock */
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* =========================================================
+   REMOVE "AI DASHBOARD" VISUAL LANGUAGE
+   ========================================================= */
+
+body,
+main,
+section {
+  background-image: none !important;
+}
+
+.glow,
+.neon,
+.glow-effect {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+/* Typography Utilities */
+.mono {
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+}
+
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+
+.highlight-cyan { color: var(--primary); }
+.highlight-emerald { color: var(--success); }
+.highlight-amber { color: var(--warning); }
+.highlight-white { color: var(--text-primary); }
+.highlight-slate { color: var(--text-secondary); }
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+header.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-bottom: 1px solid var(--border) !important;
+  box-shadow: 0 1px 4px rgba(20, 40, 70, 0.04);
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+}
+
+.header-container {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+}
+
+.brand-symbol {
+  width: 34px;
+  height: 34px;
+  background: var(--primary-light);
+  border: 1px solid rgba(25, 118, 210, 0.2);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+}
+
+.brand-text-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.brand-subtitle {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  list-style: none;
+}
+
+.nav-link {
+  color: var(--text-secondary) !important;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.nav-link:hover {
+  color: var(--primary) !important;
+}
+
+.nav-link.active {
+  color: var(--primary) !important;
+  font-weight: 600;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.system-status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--success);
+  background: var(--success-light);
+  border: 1px solid #cdeee2;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+}
+
+.system-status-indicator .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+/* =========================================================
+   PAGE CONTAINER & TYPOGRAPHY HIERARCHY
+   ========================================================= */
+
+.page-container {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 36px 24px 60px;
+  width: 100%;
+}
+
+.max-w-content {
+  max-width: var(--max-width-content);
+}
+
+.page-header {
+  margin-bottom: 28px;
+}
+
+.page-breadcrumb {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.page-breadcrumb a {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.page-breadcrumb a:hover {
+  color: var(--primary);
+}
+
+.crumb-sep {
+  color: var(--border);
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 750;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+  margin-bottom: 6px;
+}
+
+.page-subtitle {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  max-width: 680px;
+  line-height: 1.6;
+}
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--primary) !important;
+  color: white !important;
+  border: 1px solid var(--primary) !important;
+  box-shadow: 0 4px 12px rgba(25, 118, 210, 0.18);
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark) !important;
+  border-color: var(--primary-dark) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 7px 18px rgba(25, 118, 210, 0.22);
+}
+
+.btn-secondary {
+  background: white !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary:hover {
+  background: var(--surface-hover) !important;
+  border-color: #cbd5e1 !important;
+}
+
+.btn-emerald {
+  background: var(--success) !important;
+  color: white !important;
+  border: 1px solid var(--success) !important;
+  box-shadow: 0 4px 12px rgba(21, 149, 112, 0.18);
+}
+
+.btn-emerald:hover {
+  background: #0f7a5b !important;
+}
+
+.btn-danger {
+  background: var(--danger) !important;
+  color: white !important;
+  border: 1px solid var(--danger) !important;
+}
+
+.btn-danger:hover {
+  background: #b93838 !important;
+}
+
+.btn-outline-danger {
+  background: white !important;
+  color: var(--danger) !important;
+  border: 1px solid #f4caca !important;
+}
+
+.btn-outline-danger:hover {
+  background: var(--danger-light) !important;
+  border-color: var(--danger) !important;
+}
+
+.btn-sm {
+  font-size: 0.8rem;
+  padding: 7px 14px;
+}
+
+.btn-xs {
+  font-size: 0.75rem;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.btn-lg {
+  font-size: 1rem;
+  padding: 13px 26px;
+  border-radius: var(--radius-md);
+}
+
+.btn-full {
+  width: 100%;
+}
+
+/* =========================================================
+   INPUTS & FORMS
+   ========================================================= */
+
+input,
+select,
+textarea {
+  background: white !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-md) !important;
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.12) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* =========================================================
+   CARDS & PANELS
+   ========================================================= */
+
+.card,
+.panel,
+.dashboard-card,
+.hospital-card,
+.queue-card,
+.feature-card,
+.how-card,
+.live-kpi-card,
+.department-card {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-sm) !important;
+  color: var(--text-primary) !important;
+}
+
+.card:hover,
+.hospital-card:hover,
+.queue-card:hover,
+.department-card:hover {
+  box-shadow: var(--shadow-md) !important;
+  border-color: #d5dee8 !important;
+}
+
+/* =========================================================
+   BIG QUEUE NUMBERS & STATS
+   ========================================================= */
+
+.queue-number,
+.patient-count,
+.big-number,
+.kpi-giant-value {
+  color: var(--primary) !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+}
+
+.stat-value {
+  color: var(--text-primary) !important;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+.stat-label {
+  color: var(--text-muted) !important;
+}
+
+/* Section labels & eyebrows */
+.section-label,
+.eyebrow,
+.label,
+.section-eyebrow,
+.flow-step-eyebrow,
+.kpi-label,
+.cell-label,
+.dept-metric-label,
+.kpi-tag,
+.token-hero-label,
+.token-id-label,
+.header-tag {
+  color: var(--text-muted) !important;
+  font-family: inherit !important;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* =========================================================
+   TABLES
+   ========================================================= */
+
+table {
+  background: white;
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+thead {
+  background: #f8fafc;
+}
+
+th {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+td {
+  color: var(--text-primary);
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr:hover {
+  background: #fafcff;
+}
+
+/* =========================================================
+   LINKS & DIVIDERS
+   ========================================================= */
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--primary-dark);
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+/* =========================================================
+   SCROLLBAR
+   ========================================================= */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f4f7;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5df;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #aebbc9;
+}
+
+/* Subtle pulse dot */
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  display: inline-block;
+}
+
+.pulse-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  display: inline-block;
+}
