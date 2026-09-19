@@ -9,11 +9,10 @@ from typing import Dict, Any, List
 
 DEPARTMENT_ENCODING = {
     "Cardiology": 0,
-    "ENT": 1,
-    "Orthopedics": 2,
-    "Pediatrics": 3,
-    "General Medicine": 4,
-    "Dermatology": 5
+    "Orthopedics": 1,
+    "Pediatrics": 2,
+    "General Medicine": 3,
+    "Dermatology": 4
 }
 
 HOSPITAL_ENCODING = {
