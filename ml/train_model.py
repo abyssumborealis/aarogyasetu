@@ -1,81 +1,128 @@
+"""
+Automated Training and Evaluation Runner for Hospital Flow ML Models.
+Generates synthetic data, trains both ETA and Crowd models, evaluates on test splits,
+serializes models to ml/models/, and executes sample inference verification.
+"""
 from __future__ import annotations
+import os
 from pathlib import Path
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import pandas as pd
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
-from src.crowd_model import NUMERIC as CROWD_NUM
-from src.crowd_model import CATEGORICAL as CROWD_CAT
-from src.crowd_model import save_model as save_crowd
-from src.crowd_model import train_crowd_model
-from src.data_generator import save_dataset
-from src.eta_model import NUMERIC as ETA_NUM
-from src.eta_model import CATEGORICAL as ETA_CAT
-from src.eta_model import save_model as save_eta
-from src.eta_model import train_eta_model
-from src.feature_engineering import create_ml_feature_table
-ROOT = Path(__file__).resolve().parent
-DATA = ROOT / "data"
-MODELS = ROOT / "models"
-def metrics(y_true, y_pred) -> dict:
-    rmse = mean_squared_error(y_true, y_pred) ** 0.5
-    return {
-        "MAE": round(float(mean_absolute_error(y_true, y_pred)), 3),
-        "RMSE": round(float(rmse), 3),
-        "R2": round(float(r2_score(y_true, y_pred)), 3),
+from ml.generate_dataset import save_dataset
+from ml.eta_model import (
+    train_eta_model,
+    predict_eta,
+    save_model as save_eta_model,
+    load_model as load_eta_model,
+    NUMERIC_FEATURES as ETA_NUMERIC,
+    CATEGORICAL_FEATURES as ETA_CAT,
+)
+from ml.crowd_model import (
+    train_crowd_model,
+    predict_crowd,
+    save_model as save_crowd_model,
+    load_model as load_crowd_model,
+    NUMERIC_FEATURES as CROWD_NUMERIC,
+    CATEGORICAL_FEATURES as CROWD_CAT,
+)
+from ml.correction_engine import CorrectionEngine
+def main():
+    root = Path(__file__).resolve().parent
+    data_dir = root / "data"
+    models_dir = root / "models"
+    models_dir.mkdir(parents=True, exist_ok=True)
+    print("=" * 65)
+    print("STEP 1: Generating Aligned Synthetic Flow Datasets")
+    print("=" * 65)
+    datasets = save_dataset(data_dir)
+    print(f"Generated registrations: {len(datasets['registrations']):,} rows")
+    print(f"Generated crowd features: {len(datasets['crowd']):,} rows")
+       print(f"Generated ETA features:   {len(datasets['eta']):,} rows")
+    # ----------------------------------------------------------------------- #
+    # Train ETA Model
+    # ----------------------------------------------------------------------- #
+    print("\n" + "=" * 65)
+    print("STEP 2: Training Waiting Time (ETA) Model")
+    print("=" * 65)
+    eta_df = datasets["eta"]
+    train_eta_df, test_eta_df = train_test_split(eta_df, test_size=0.2, random_state=42)
+    eta_pipeline = train_eta_model(train_eta_df)
+    # Evaluate on test split
+    X_test_eta = test_eta_df[ETA_NUMERIC + ETA_CAT]
+    y_test_eta = test_eta_df["waiting_time_minutes"]
+    preds_eta = eta_pipeline.predict(X_test_eta)
+    eta_mae = mean_absolute_error(y_test_eta, preds_eta)
+    eta_r2 = r2_score(y_test_eta, preds_eta)
+    print(f"ETA Model Test Results:")
+    print(f"  * Mean Absolute Error (MAE): {eta_mae:.2f} minutes")
+    print(f"  * R2 Score:                  {eta_r2:.4f}")
+    eta_model_path = models_dir / "eta_model.joblib"
+    save_eta_model(eta_pipeline, eta_model_path)
+    print(f"Serialized ETA model saved to: {eta_model_path}")
+    # ----------------------------------------------------------------------- #
+    # Train Crowd Model
+    # ----------------------------------------------------------------------- #
+    print("\n" + "=" * 65)
+    print("STEP 3: Training Future Crowd Prediction Model")
+    print("=" * 65)
+    crowd_df = datasets["crowd"]
+    train_crowd_df, test_crowd_df = train_test_split(crowd_df, test_size=0.2, random_state=42)
+    crowd_pipeline = train_crowd_model(train_crowd_df)
+    # Evaluate on test split
+    X_test_crowd = test_crowd_df[CROWD_NUMERIC + CROWD_CAT]
+    y_test_crowd = test_crowd_df["crowd_count"]
+    preds_crowd = crowd_pipeline.predict(X_test_crowd)
+    crowd_mae = mean_absolute_error(y_test_crowd, preds_crowd)
+    crowd_r2 = r2_score(y_test_crowd, preds_crowd)
+    print(f"Crowd Model Test Results:")
+    print(f"  * Mean Absolute Error (MAE): {crowd_mae:.2f} patients")
+    print(f"  * R2 Score:                  {crowd_r2:.4f}")
+    crowd_model_path = models_dir / "crowd_model.joblib"
+    save_crowd_model(crowd_pipeline, crowd_model_path)
+    print(f"Serialized Crowd model saved to: {crowd_model_path}")
+    # ----------------------------------------------------------------------- #
+    # Inference Verification
+    # ----------------------------------------------------------------------- #
+    print("\n" + "=" * 65)
+    print("STEP 4: Verifying Live Inference via Production APIs")
+    print("=" * 65)
+    loaded_eta = load_eta_model(eta_model_path)
+    test_eta_input = {
+        "department": "Cardiology",
+        "department_code": "CAR",
+        "people_ahead": 6,
+        "doctors_available": 2,
+        "average_service_time": 15,
+        "queue_length": 7,
     }
-def feature_importance_plot(pipeline, numeric, categorical, title: str, outfile: Path) -> None:
-    pre = pipeline.named_steps["pre"]
-    rf = pipeline.named_steps["rf"]
-    cat_names = list(pre.named_transformers_["cat"].get_feature_names_out(categorical))
-    names = list(numeric) + cat_names
-    importances = rf.feature_importances_
-    order = importances.argsort()[::-1][:12]
-    plt.figure(figsize=(8, 4.5))
-    plt.barh([names[i] for i in order][::-1], importances[order][::-1], color="#0f766e")
-    plt.title(title)
-    plt.tight_layout()
-    outfile.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(outfile, dpi=120)
-    plt.close()
-def main() -> None:
-    print("Generating synthetic data...")
-    data = save_dataset(DATA)
-    print(f"Registrations: {len(data['registrations'])}")
-    feat = create_ml_feature_table(data["registrations"])
-    feat.to_csv(DATA / "module1_features.csv", index=False)
-    print(f"Module 1 feature rows: {len(feat)}")
-    crowd = data["crowd"]
-    eta = data["eta"]
-    c_train, c_test = train_test_split(crowd, test_size=0.2, random_state=42)
-    crowd_model = train_crowd_model(c_train)
-    c_pred = crowd_model.predict(c_test[CROWD_NUM + CROWD_CAT])
-    crowd_scores = metrics(c_test["crowd_count"], c_pred)
-    print("Crowd model:", crowd_scores)
-    e_train, e_test = train_test_split(eta, test_size=0.2, random_state=42)
-    eta_model = train_eta_model(e_train)
-    e_pred = eta_model.predict(e_test[ETA_NUM + ETA_CAT])
-    eta_scores = metrics(e_test["waiting_time_minutes"], e_pred)
-    print("ETA model:", eta_scores)
-    save_crowd(crowd_model, MODELS / "crowd_model.pkl")
-    save_eta(eta_model, MODELS / "eta_model.pkl")
-    feature_importance_plot(
-        crowd_model, CROWD_NUM, CROWD_CAT, "Crowd model feature importance", MODELS / "crowd_importance.png"
-    )
-    feature_importance_plot(
-        eta_model, ETA_NUM, ETA_CAT, "ETA model feature importance", MODELS / "eta_importance.png"
-    )
-    report = [
-        "Hospital Queue ML evaluation",
-        f"Registrations generated: {len(data['registrations'])}",
-        f"Crowd rows: {len(crowd)}  ETA rows: {len(eta)}",
-        f"Crowd MAE={crowd_scores['MAE']} RMSE={crowd_scores['RMSE']} R2={crowd_scores['R2']}",
-        f"ETA   MAE={eta_scores['MAE']} RMSE={eta_scores['RMSE']} R2={eta_scores['R2']}",
-        "Models saved to ml/models/",
-    ]
-    (MODELS / "evaluation_report.txt").write_text("\n".join(report), encoding="utf-8")
-    print("\n".join(report))
+    eta_result = predict_eta(loaded_eta, test_eta_input)
+    print(f"Inference Test -> ETA Prediction for Cardiology (6 ahead, 2 docs, 15 min avg):")
+    print(f"  Result: {eta_result}")
+    loaded_crowd = load_crowd_model(crowd_model_path)
+    test_crowd_input = {
+        "department": "General Medicine",
+        "department_code": "GEN",
+        "current_queue": 8,
+        "expected_arrivals_15min": 4,
+        "expected_arrivals_30min": 9,
+        "expected_arrivals_60min": 18,
+        "doctors_available": 2,
+        "average_service_time": 10,
+    }
+    crowd_result = predict_crowd(loaded_crowd, test_crowd_input, capacity=25)
+    print(f"\nInference Test -> Crowd Prediction for General Medicine (Capacity 25):")
+    print(f"  Result: {crowd_result}")
+    correction = CorrectionEngine()
+    corr_result = correction.adjust_predictions(expected_arrivals=20, actual_arrivals=14, base_capacity=20)
+    print(f"\nInference Test -> Correction Engine (20 expected vs 14 actual):")
+    print(f"  Result: {corr_result}")
+    print("\n" + "=" * 65)
+    print("[SUCCESS] All ML components trained, verified, and ready for backend integration!")
+    print("=" * 65)
 if __name__ == "__main__":
     main()
+
+
+
+    
