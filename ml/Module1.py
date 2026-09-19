@@ -17,9 +17,9 @@ DEPARTMENT_ENCODING = {
 }
 
 HOSPITAL_ENCODING = {
-    "H001": 0,  # CityCare Hospital
-    "H002": 1,  # MetroHealth Medical Center
-    "H003": 2   # St. Jude General Hospital
+    "H001": 0,  # City Hospital
+    "H002": 1,  # PGIMER
+    "H003": 2   # Government Multi Specialitiy Hospital
 }
 
 def encode_department(dept_name: str) -> int:
