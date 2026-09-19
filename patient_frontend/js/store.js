@@ -5,6 +5,7 @@
  */
 
 import { SYSTEM_STATES, TOKEN_STATUS, QUEUE_TYPES, TOKEN_PRIORITY, getHospital, getDepartment } from './data.js';
+import { localDateString } from './timefmt.js';
 
 class QueueStore {
   constructor() {
@@ -104,6 +105,16 @@ class QueueStore {
         appointmentId: 'APT-9921',
         departmentId: 'gen-med'
       },
+
+      // Requested consultation time (Step 3) and the server's arrival recommendation for it.
+      // desiredDate is 'YYYY-MM-DD' and desiredTime is 'HH:MM', both in hospital-local time.
+      // arrivalPlan is cleared whenever the department, date or time changes, so a result for
+      // 2 PM can never sit next to a 4 PM request:
+      //   null | { key, status: 'loading' } | { key, status: 'error', message }
+      //        | { key, status: 'ready', ...ArrivalPreviewOut, simulated }
+      desiredDate: localDateString(),
+      desiredTime: '',
+      arrivalPlan: null,
 
       // UI Controls & Audio
       audioChimeEnabled: true,
@@ -345,10 +356,51 @@ class QueueStore {
   }
 
   updateRegistrationDraft(patch) {
+    const deptChanged = patch.departmentId !== undefined
+      && patch.departmentId !== this.state.registrationDraft.departmentId;
     this.state.registrationDraft = {
       ...this.state.registrationDraft,
       ...patch
     };
+    if (deptChanged) this.state.arrivalPlan = null;
+    this.notify();
+  }
+
+  // Requested consultation slot -------------------------------------------- //
+  setDesiredDate(date) {
+    this.state.desiredDate = date || '';
+    this.state.arrivalPlan = null;
+    this.notify();
+  }
+
+  setDesiredTime(time) {
+    this.state.desiredTime = time || '';
+    this.state.arrivalPlan = null;
+    this.notify();
+  }
+
+  setDesiredSlot(date, time) {
+    this.state.desiredDate = date || '';
+    this.state.desiredTime = time || '';
+    this.state.arrivalPlan = null;
+    this.notify();
+  }
+
+  /** Identifies the request a plan answers: department | date | time. */
+  arrivalKey() {
+    const { registrationDraft, desiredDate, desiredTime } = this.state;
+    return `${registrationDraft.departmentId}|${desiredDate}|${desiredTime}`;
+  }
+
+  /** Ignores a result whose request is no longer the current one (slow response, user moved on). */
+  setArrivalPlan(plan) {
+    if (plan && plan.key !== this.arrivalKey()) return;
+    this.state.arrivalPlan = plan;
+    this.notify();
+  }
+
+  updatePatient(patch) {
+    this.state.patient = { ...this.state.patient, ...patch };
     this.notify();
   }
 

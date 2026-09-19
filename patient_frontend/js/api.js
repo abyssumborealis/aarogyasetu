@@ -9,15 +9,74 @@
  *   - POST /walkin/reception
  *   - GET  /queue/{department_id}/next
  *   - POST /queue/{department_id}/call-next
+ *   - POST /tokens/virtual/preview   ("Check availability" for a requested consultation time)
+ *   - POST /tokens/virtual           (time-slot booking)
  *
  * Automatically parses TokenOut and invokes store mutators.
  * Includes resilient fallback simulation when FastAPI is not currently running.
  */
 
 import { store } from './store.js';
-import { SYSTEM_STATES, TOKEN_STATUS, QUEUE_TYPES, CHECKIN_METHODS } from './data.js';
+import { SYSTEM_STATES, TOKEN_STATUS, QUEUE_TYPES, CHECKIN_METHODS, getDepartment } from './data.js';
+import { fmtWindow } from './timefmt.js';
 
 const API_BASE = window.__API_BASE__ || 'http://localhost:8000';
+
+// Frontend department ids (data.js) -> backend department ids (backend/database/seed.py:
+// hospital 1 = 101-105, hospital 2 = 201-205). data.js can also carry a `backendId` per department,
+// which wins. A department with neither can't be reached on the backend, so the slot check
+// and booking fall back to the local simulation.
+const BACKEND_DEPARTMENT_IDS = { 'gen-med': 101 };
+
+function backendDepartmentId(hospitalId, deptId) {
+  let dept = null;
+  try { dept = getDepartment(hospitalId, deptId); } catch (e) { /* unknown department */ }
+  return dept?.backendId ?? BACKEND_DEPARTMENT_IDS[deptId] ?? null;
+}
+
+// PLACEHOLDER AUTH: mirrors the backend's get_current_patient(), which trusts this header.
+function patientHeaders() {
+  return { 'X-Patient-Id': String(store.getState().patient.id) };
+}
+
+const VISIT_REASONS = {
+  appointment: 'Scheduled appointment',
+  followup: 'Follow-up consultation',
+  walkin: 'General outpatient visit'
+};
+
+async function readError(res) {
+  try {
+    const body = await res.json();
+    if (typeof body.detail === 'string') return body.detail;
+    if (Array.isArray(body.detail)) return body.detail.map(d => d.msg).join('; ');
+  } catch (e) { /* not JSON */ }
+  return `Request failed (${res.status})`;
+}
+
+/** Offline stand-in for the server's plan: same shape, crude numbers. Flagged `simulated`. */
+function simulateArrivalPlan(key, date, time) {
+  const WAIT = 15, WINDOW = 10, NOTICE = 20;
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const desired = new Date(`${date}T${time}:00`);
+  const base = { key, status: 'ready', simulated: true, timezone: tz, model_version: 'offline-estimate',
+                 requested_consultation_at: desired.toISOString() };
+
+  if (desired.getTime() <= Date.now()) {
+    return { ...base, available: false, reason: 'in_the_past',
+             message: 'That time has already passed. Please choose a later time.' };
+  }
+  const from = new Date(desired.getTime() - (WAIT + WINDOW) * 60000);
+  if (from.getTime() < Date.now() + NOTICE * 60000) {
+    const q = 15 * 60000;
+    const earliest = new Date(Math.ceil((Date.now() + (NOTICE + WAIT + WINDOW) * 60000) / q) * q);
+    return { ...base, available: false, reason: 'too_soon', earliest_available_at: earliest.toISOString(),
+             message: `We need at least ${NOTICE} minutes' notice before your arrival window.` };
+  }
+  return { ...base, available: true, message: '', congestion_level: 'medium', predicted_wait_minutes: WAIT,
+           arrive_from: from.toISOString(), arrive_until: new Date(from.getTime() + WINDOW * 60000).toISOString(),
+           expected_consultation_at: desired.toISOString() };
+}
 
 async function fetchWithTimeout(resource, options = {}, timeoutMs = 3000) {
   const controller = new AbortController();
@@ -241,10 +300,97 @@ export const api = {
   },
 
   /**
+   * POST /tokens/virtual/preview
+   * "Check availability": read-only. Asks the server when to arrive to be seen at the requested
+   * date/time. The result is stored as store.arrivalPlan (keyed to the request it answers).
+   * Falls back to a local estimate, flagged `simulated`, only when the backend is unreachable.
+   */
+  async previewArrival() {
+    const state = store.getState();
+    const { desiredDate, desiredTime } = state;
+    if (!desiredDate || !desiredTime) {
+      store.showToast('Choose a date and a time first.', 'warning');
+      return null;
+    }
+
+    const key = store.arrivalKey();
+    const backendDeptId = backendDepartmentId(state.activeHospitalId, state.registrationDraft.departmentId);
+    store.setArrivalPlan({ key, status: 'loading' });
+
+    if (backendDeptId !== null) {
+      try {
+        const res = await fetchWithTimeout(`${this.baseUrl}/tokens/virtual/preview`, {
+          method: 'POST',
+          headers: patientHeaders(),
+          body: JSON.stringify({
+            department_id: backendDeptId,
+            desired_consultation_at: `${desiredDate}T${desiredTime}`
+          })
+        }, 4000);
+
+        if (!res.ok) {
+          // The server answered and said no (bad session, bad input): show that, don't fake a result.
+          store.setArrivalPlan({ key, status: 'error', message: await readError(res) });
+          return null;
+        }
+        const plan = { ...(await res.json()), key, status: 'ready', simulated: false };
+        store.setArrivalPlan(plan);
+        return plan;
+      } catch (err) {
+        console.warn('[API] /tokens/virtual/preview fallback to local estimate:', err.message);
+      }
+    }
+
+    const plan = simulateArrivalPlan(key, desiredDate, desiredTime);
+    store.setArrivalPlan(plan);
+    return plan;
+  },
+
+  /**
    * Pre-register visit (Remote Phase)
-   * Places patient into pre-registered pool; keeps physical queue at 32
+   * With a checked time slot: POST /tokens/virtual, and the server recomputes the arrival window
+   * from the requested time (the previewed window is never sent back).
+   * Without one (guided demo): the original local simulation.
+   * Resolves to { ok, preRegRef, virtualToken }; ok === false means the server refused the booking.
    */
   async preRegisterVisit(patientData) {
+    const state = store.getState();
+    const plan = state.arrivalPlan;
+    const hasSlot = Boolean(state.desiredTime) && plan && plan.status === 'ready'
+      && plan.available && plan.key === store.arrivalKey();
+    const backendDeptId = backendDepartmentId(state.activeHospitalId, state.registrationDraft.departmentId);
+
+    if (hasSlot && !plan.simulated && backendDeptId !== null) {
+      try {
+        const res = await fetchWithTimeout(`${this.baseUrl}/tokens/virtual`, {
+          method: 'POST',
+          headers: patientHeaders(),
+          body: JSON.stringify({
+            department_id: backendDeptId,
+            reason: VISIT_REASONS[patientData?.visitType] || null,
+            desired_consultation_at: `${state.desiredDate}T${state.desiredTime}`
+          })
+        }, 5000);
+
+        if (!res.ok) {
+          store.showToast(await readError(res), 'error', 6000);
+          store.setArrivalPlan(null);   // the situation changed (slot taken, time passed...): re-check
+          return { ok: false };
+        }
+
+        const tokenOut = await res.json();
+        store.updateRegistrationDraft(patientData);
+        store.setToken(tokenOut);
+        store.setQueueState(SYSTEM_STATES.PRE_REGISTERED);
+        const arrivalWindow = fmtWindow(tokenOut.report_by_at, tokenOut.arrival_window_end_at, plan.timezone);
+        store.updatePatient({ arrivalWindow, preRegCode: tokenOut.display_code });
+        store.showToast(`Booked! Token ${tokenOut.display_code}. Arrive between ${arrivalWindow}.`, 'success');
+        return { ok: true, preRegRef: tokenOut.display_code, virtualToken: tokenOut };
+      } catch (err) {
+        console.warn('[API] /tokens/virtual fallback to local simulation:', err.message);
+      }
+    }
+
     const preRegRef = 'PRE-' + Math.floor(10000 + Math.random() * 90000);
     const virtualToken = {
       id: 128,
@@ -263,11 +409,20 @@ export const api = {
       predicted_wait_minutes: 35
     };
 
+    if (hasSlot) {   // simulated slot: carry the requested time and window into the confirmation
+      virtualToken.requested_consultation_at = plan.requested_consultation_at;
+      virtualToken.report_by_at = plan.arrive_from;
+      virtualToken.arrival_window_end_at = plan.arrive_until;
+    }
+
     store.updateRegistrationDraft(patientData);
     store.setToken(virtualToken);
     store.setQueueState(SYSTEM_STATES.PRE_REGISTERED);
+    if (hasSlot) {
+      store.updatePatient({ arrivalWindow: fmtWindow(plan.arrive_from, plan.arrive_until, plan.timezone) });
+    }
     store.showToast(`Pre-registration confirmed! Reference: ${preRegRef}.`, 'success');
-    return { preRegRef, virtualToken };
+    return { ok: true, preRegRef, virtualToken };
   },
 
   /**

@@ -104,9 +104,34 @@ document.addEventListener('click', (e) => {
   const confirmPreregBtn = e.target.closest('#confirm-prereg-btn');
   if (confirmPreregBtn) {
     e.preventDefault();
-    api.preRegisterVisit(store.getState().registrationDraft).then(() => {
-      window.location.hash = '#pre-confirmed';
+    api.preRegisterVisit(store.getState().registrationDraft).then((result) => {
+      if (result && result.ok) {
+        window.location.hash = '#pre-confirmed';
+      } else {
+        window.location.hash = '#register';      // the server refused the slot: pick another one
+        store.setRegistrationStep(3);
+      }
     });
+    return;
+  }
+
+  // ---- Step 3: "Check availability" for the requested consultation time ----
+  const checkAvailabilityBtn = e.target.closest('#check-availability-btn');
+  if (checkAvailabilityBtn) {
+    e.preventDefault();
+    api.previewArrival();
+    return;
+  }
+
+  // ---- Step 3: switch to the earliest time the server suggested ----
+  const useEarliestBtn = e.target.closest('#use-earliest-btn');
+  if (useEarliestBtn) {
+    e.preventDefault();
+    const { iso, tz } = useEarliestBtn.dataset;
+    const date = new Date(iso).toLocaleDateString('en-CA', { timeZone: tz });
+    const time = new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+    store.setDesiredSlot(date, time);
+    api.previewArrival();
     return;
   }
 
@@ -253,6 +278,21 @@ document.addEventListener('click', (e) => {
 });
 
 // --------------------------------------------------------------------------- //
+// Step 3 field changes. Each one invalidates the previous availability result (see the store).
+// 'change' rather than 'input': the view re-renders on every store update, which would drop focus
+// mid-typing.
+// --------------------------------------------------------------------------- //
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'desired-date-input') {
+    store.setDesiredDate(e.target.value);
+  } else if (e.target.id === 'desired-time-select') {
+    store.setDesiredTime(e.target.value);
+  } else if (e.target.id === 'department-select') {
+    store.updateRegistrationDraft({ departmentId: e.target.value });
+  }
+});
+
+// --------------------------------------------------------------------------- //
 // Form Submission Handlers
 // --------------------------------------------------------------------------- //
 document.addEventListener('submit', (e) => {
@@ -274,6 +314,11 @@ document.addEventListener('submit', (e) => {
     e.preventDefault();
     const deptSelect = document.getElementById('department-select');
     const selectedRadio = document.querySelector('input[name="visitType"]:checked');
+    const plan = store.getState().arrivalPlan;
+    if (!(plan && plan.status === 'ready' && plan.available && plan.key === store.arrivalKey())) {
+      store.showToast('Check availability for your preferred time before continuing.', 'warning');
+      return;
+    }
     store.updateRegistrationDraft({
       visitType: selectedRadio ? selectedRadio.value : 'appointment',
       departmentId: deptSelect ? deptSelect.value : 'gen-med'

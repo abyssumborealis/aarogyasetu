@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     # If the re-planned report_by_at drifts by less than this, don't re-notify the patient.
     report_reschedule_threshold_minutes: int = 10
 
+    # --- requested consultation time ("I'd like to be seen around 4 PM") ------------------------ #
+    # Width of the arrival window the patient is given, e.g. "arrive between 3:40 and 3:50 PM".
+    arrival_window_minutes: int = 10
+    # How many days ahead a consultation time can be requested (0 = same day only).
+    max_advance_days: int = 7
+
     # --- calling patients ------------------------------------------------------------------ #
     # Nudge a called-but-not-arrived patient again after this many minutes.
     call_reminder_minutes: int = 3

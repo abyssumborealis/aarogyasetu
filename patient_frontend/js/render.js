@@ -6,6 +6,7 @@
 
 import { store } from './store.js';
 import { SYSTEM_STATES, HOSPITALS, getHospital, getDepartment, getHospitalsWithDistance, formatDistance } from './data.js';
+import { fmtClock, fmtWindow, fmtDayLabel, localDateString } from './timefmt.js';
 
 export function render() {
   const state = store.getState();
@@ -804,7 +805,7 @@ function renderRegisterView(state) {
           </div>
 
           <div class="form-body-wrapper">
-            ${step === 1 ? renderStep1(draft, hospital) : step === 2 ? renderStep2(draft) : renderStep3(draft, hospital)}
+            ${step === 1 ? renderStep1(draft, hospital) : step === 2 ? renderStep2(draft) : renderStep3(draft, hospital, state)}
           </div>
         </div>
       </div>
@@ -892,7 +893,8 @@ function renderStep2(draft) {
   `;
 }
 
-function renderStep3(draft, hospital) {
+function renderStep3(draft, hospital, state) {
+  const canContinue = slotIsReady(state);
   return `
     <div class="form-section active" id="form-step-3">
       <div class="section-intro">
@@ -940,13 +942,168 @@ function renderStep3(draft, hospital) {
           </select>
         </div>
 
+        ${renderSlotSection(state)}
+
         <div class="form-actions-bar">
           <button type="button" id="step-3-back-btn" class="btn btn-secondary">Back</button>
-          <button type="submit" class="btn btn-primary btn-lg">Review Pre-Registration →</button>
+          <button type="submit" class="btn btn-primary btn-lg" ${canContinue ? '' : 'disabled'}>Review Pre-Registration →</button>
         </div>
       </form>
     </div>
   `;
+}
+
+// --------------------------------------------------------------------------- //
+// Requested consultation time: pickers + "Check availability" result
+// --------------------------------------------------------------------------- //
+// Mirrors backend settings.max_advance_days; the server is the authority and rejects anything beyond it.
+const MAX_ADVANCE_DAYS = 7;
+
+const CONGESTION_LABELS = { low: 'Quiet', medium: 'Moderate', high: 'Busy', critical: 'Very busy' };
+
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+/** 15-minute slots, 08:00-19:45. The server validates against real opening hours and doctor shifts. */
+function timeSlotOptions(selected) {
+  const options = ['<option value="">Select a time</option>'];
+  for (let minutes = 8 * 60; minutes < 20 * 60; minutes += 15) {
+    const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
+    const mm = String(minutes % 60).padStart(2, '0');
+    const label = new Date(`2000-01-01T${hh}:${mm}:00`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    options.push(`<option value="${hh}:${mm}" ${selected === `${hh}:${mm}` ? 'selected' : ''}>${label}</option>`);
+  }
+  return options.join('');
+}
+
+/** True only for an available result that answers the CURRENT department/date/time. */
+function slotIsReady(state) {
+  const plan = state.arrivalPlan;
+  return Boolean(plan && plan.status === 'ready' && plan.available && plan.key === store.arrivalKey());
+}
+
+function renderSlotSection(state) {
+  const minDate = localDateString();
+  const maxDate = localDateString(new Date(Date.now() + MAX_ADVANCE_DAYS * 24 * 60 * 60 * 1000));
+
+  return `
+    <div class="slot-section">
+      <label class="form-label">PREFERRED CONSULTATION TIME</label>
+      <div class="slot-fields">
+        <div class="form-group">
+          <label class="slot-field-label" for="desired-date-input">Date</label>
+          <input type="date" id="desired-date-input" class="form-input"
+                 value="${esc(state.desiredDate)}" min="${minDate}" max="${maxDate}" />
+        </div>
+        <div class="form-group">
+          <label class="slot-field-label" for="desired-time-select">Time</label>
+          <select id="desired-time-select" class="form-input">${timeSlotOptions(state.desiredTime)}</select>
+        </div>
+      </div>
+      <button type="button" id="check-availability-btn" class="btn btn-secondary">Check availability</button>
+      ${renderArrivalPlanCard(state.arrivalPlan)}
+    </div>
+  `;
+}
+
+function renderArrivalPlanCard(plan) {
+  if (!plan) {
+    return `<p class="slot-hint">Choose a date and time, then check availability to see when to arrive.</p>`;
+  }
+  if (plan.status === 'loading') {
+    return `<div class="arrival-plan-card is-loading" role="status">Checking availability…</div>`;
+  }
+  if (plan.status === 'error') {
+    return `
+      <div class="arrival-plan-card is-unavailable" role="alert">
+        <div class="arrival-plan-head"><span class="arrival-plan-badge">Couldn't check</span></div>
+        <p class="arrival-plan-message">${esc(plan.message)}</p>
+      </div>`;
+  }
+
+  const tz = plan.timezone;
+  if (!plan.available) {
+    const earliest = plan.earliest_available_at
+      ? `<button type="button" id="use-earliest-btn" class="btn btn-secondary btn-sm"
+                 data-iso="${esc(plan.earliest_available_at)}" data-tz="${esc(tz)}">
+           Use ${fmtClock(plan.earliest_available_at, tz)} instead
+         </button>`
+      : '';
+    return `
+      <div class="arrival-plan-card is-unavailable" role="alert">
+        <div class="arrival-plan-head"><span class="arrival-plan-badge">Not available</span></div>
+        <p class="arrival-plan-message">${esc(plan.message)}</p>
+        ${earliest}
+      </div>`;
+  }
+
+  const level = plan.congestion_level || 'medium';
+  return `
+    <div class="arrival-plan-card is-available" role="status">
+      <div class="arrival-plan-head">
+        <span class="arrival-plan-badge">Slot available</span>
+        <span class="arrival-plan-congestion level-${esc(level)}">${CONGESTION_LABELS[level] || esc(level)}</span>
+      </div>
+      <div class="arrival-plan-window">
+        <span class="arrival-plan-label">ARRIVE BETWEEN</span>
+        <strong class="arrival-plan-time mono">${fmtWindow(plan.arrive_from, plan.arrive_until, tz)}</strong>
+        <span class="arrival-plan-sub">${fmtDayLabel(plan.requested_consultation_at, tz)} · for your ${fmtClock(plan.requested_consultation_at, tz)} consultation</span>
+      </div>
+      <div class="arrival-plan-meta">
+        <div><span>Expected wait after arrival</span><strong class="mono">~${plan.predicted_wait_minutes} min</strong></div>
+        <div><span>Expected consultation</span><strong class="mono">~${fmtClock(plan.expected_consultation_at, tz)}</strong></div>
+      </div>
+      <p class="arrival-plan-note">
+        ${plan.simulated
+          ? 'Offline estimate — the hospital server could not be reached. Your window is confirmed when you book.'
+          : `Estimate (${esc(plan.model_version)}). Your final window is confirmed when you book.`}
+      </p>
+    </div>`;
+}
+
+/** Review page rows: requested time + arrival window (falls back to the original static row). */
+function renderReviewArrivalRows(state) {
+  if (!slotIsReady(state)) {
+    return `
+          <div class="review-row">
+            <span class="review-label">Expected Arrival Window</span>
+            <div class="review-value">
+              <strong class="mono highlight-white">Today, 10:30–11:00 AM (Recommended)</strong>
+              <span class="review-sub">Arrive within this window for expedited check-in</span>
+            </div>
+          </div>`;
+  }
+  const plan = state.arrivalPlan;
+  const tz = plan.timezone;
+  return `
+          <div class="review-row">
+            <span class="review-label">Requested Consultation</span>
+            <div class="review-value">
+              <strong class="mono highlight-white">${fmtDayLabel(plan.requested_consultation_at, tz)}, ${fmtClock(plan.requested_consultation_at, tz)}</strong>
+              <span class="review-sub">Expected wait after arrival ~${plan.predicted_wait_minutes} min</span>
+            </div>
+          </div>
+
+          <div class="review-row highlight-row">
+            <span class="review-label">Arrival Window</span>
+            <div class="review-value">
+              <strong class="mono highlight-white">${fmtDayLabel(plan.arrive_from, tz)}, ${fmtWindow(plan.arrive_from, plan.arrive_until, tz)}</strong>
+              <span class="review-sub">Arrive within this window for expedited check-in</span>
+            </div>
+          </div>`;
+}
+
+/** Confirmation page: the time the patient asked for, under the arrival window. */
+function renderRequestedSlotLine(state) {
+  const requestedAt = state.token.requested_consultation_at;
+  if (!requestedAt) return '';
+  const tz = state.arrivalPlan && state.arrivalPlan.timezone;
+  return `
+          <div class="token-id-window">
+            Requested Consultation: <span class="mono highlight-white">${fmtDayLabel(requestedAt, tz)}, ${fmtClock(requestedAt, tz)}</span>
+          </div>`;
 }
 
 // --------------------------------------------------------------------------- //
@@ -999,13 +1156,7 @@ function renderPreReviewView(state) {
             </div>
           </div>
 
-          <div class="review-row">
-            <span class="review-label">Expected Arrival Window</span>
-            <div class="review-value">
-              <strong class="mono highlight-white">Today, 10:30–11:00 AM (Recommended)</strong>
-              <span class="review-sub">Arrive within this window for expedited check-in</span>
-            </div>
-          </div>
+${renderReviewArrivalRows(state)}
         </div>
 
         <div class="critical-warning-box">
@@ -1064,6 +1215,7 @@ function renderPreConfirmedView(state) {
           <div class="token-id-window">
             Target Arrival: <span class="mono highlight-white">${patient.arrivalWindow}</span>
           </div>
+${renderRequestedSlotLine(state)}
         </div>
 
         <!-- Distinct Separation Telemetry Card -->

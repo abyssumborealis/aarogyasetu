@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from database import models as m
 from routes.deps import get_current_patient, get_db
 from routes.schemas import (
+    ArrivalPreviewOut,
+    ArrivalPreviewRequest,
     DynamicQrCheckInRequest,
     IssueVirtualTokenRequest,
     TokenOut,
@@ -19,14 +21,28 @@ from services import queue_service as qs
 router = APIRouter(prefix="/tokens", tags=["tokens"])
 
 
+@router.post("/virtual/preview", response_model=ArrivalPreviewOut)
+def preview_virtual_token(
+    body: ArrivalPreviewRequest,
+    db: Session = Depends(get_db),
+    patient: m.Patient = Depends(get_current_patient),
+):
+    """'Check availability': when should I arrive to be seen at the requested time? Read-only."""
+    return qs.preview_arrival(db, patient, body.department_id, body.desired_consultation_at)
+
+
 @router.post("/virtual", response_model=TokenOut, status_code=201)
 def book_virtual_token(
     body: IssueVirtualTokenRequest,
     db: Session = Depends(get_db),
     patient: m.Patient = Depends(get_current_patient),
 ) -> m.Token:
-    """Remote booking - creates a virtual token with a reporting window already scheduled."""
-    token = qs.issue_virtual_token(db, patient, body.department_id, reason=body.reason)
+    """
+    Remote booking - creates a virtual token with a reporting window already scheduled.
+    With `desired_consultation_at` the window is recomputed server-side for that time.
+    """
+    token = qs.issue_virtual_token(db, patient, body.department_id, reason=body.reason,
+                                   desired_consultation_at=body.desired_consultation_at)
     db.commit()
     db.refresh(token)
     return token

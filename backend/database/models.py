@@ -504,6 +504,10 @@ class Token(Base):
     report_by_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     # Check in by this time or the token lapses to NO_SHOW (report_by_at + department's grace window)
     report_deadline_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # What the patient asked for when booking a time slot ("I'd like to be seen around 4 PM").
+    # NULL = classic "book now" token. When set, report_by_at / report_deadline_at are derived from it
+    # server-side (services/prediction.py) - the client never supplies the arrival window itself.
+    requested_consultation_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     # How many times this token has been called and the patient wasn't there (see mark_absent()).
     # Requeued while <= settings.max_absent_recalls, NO_SHOW once it goes over.

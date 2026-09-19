@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from database import models as m
 from database.db import get_db
 
-__all__ = ["get_db", "get_current_staff", "assert_staff_scope"]
+__all__ = ["get_db", "get_current_staff", "get_current_patient", "assert_staff_scope"]
 
 
 def get_current_staff(
@@ -21,6 +21,21 @@ def get_current_staff(
     if staff is None or not staff.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid staff session.")
     return staff
+
+
+def get_current_patient(
+    x_patient_id: int = Header(..., alias="X-Patient-Id"),
+    db: Session = Depends(get_db),
+) -> m.Patient:
+    """
+    PLACEHOLDER AUTH, same caveat as get_current_staff: trusts an `X-Patient-Id` header, so anyone
+    can act as any patient. It exists only so the patient endpoints are runnable end to end.
+    Replace with real patient authentication before this goes anywhere near production.
+    """
+    patient = db.get(m.Patient, x_patient_id)
+    if patient is None or not patient.is_active:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid patient session.")
+    return patient
 
 
 def assert_staff_scope(staff: m.StaffUser, hospital_id: int) -> None:
