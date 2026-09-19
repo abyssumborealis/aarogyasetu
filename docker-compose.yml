@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: queue_db
+      POSTGRES_USER: queue_user
+      POSTGRES_PASSWORD: queue_pass   # change for anything beyond local dev
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"                  # optional: only needed if you want to hit it from outside Docker (e.g. a GUI client)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U queue_user -d queue_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://queue_user:queue_pass@db:5432/queue_db
+      JWT_SECRET: change-me-in-production   # once auth.py exists
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app               # live-reload in dev; drop this in a prod compose file
+
+  patient_frontend:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./patient_frontend:/usr/share/nginx/html:ro
+    ports:
+      - "5173:80"
+
+  admin_frontend:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./admin_frontend:/usr/share/nginx/html:ro
+    ports:
+      - "5174:80"
+
+volumes:
+  db_data:
