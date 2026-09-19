@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
-from ml.generate_dataset import save_dataset
+from ml.data_generator import save_dataset
 from ml.eta_model import (
     train_eta_model,
     predict_eta,
@@ -38,7 +38,7 @@ def main():
     datasets = save_dataset(data_dir)
     print(f"Generated registrations: {len(datasets['registrations']):,} rows")
     print(f"Generated crowd features: {len(datasets['crowd']):,} rows")
-       print(f"Generated ETA features:   {len(datasets['eta']):,} rows")
+    print(f"Generated ETA features:   {len(datasets['eta']):,} rows")
     # ----------------------------------------------------------------------- #
     # Train ETA Model
     # ----------------------------------------------------------------------- #
