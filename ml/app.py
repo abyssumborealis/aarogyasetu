@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from ml.eta_model import predict_eta as run_predict_eta, load_model as load_eta_model
 from ml.crowd_model import predict_crowd as run_predict_crowd, load_model as load_crowd_model
 from ml.correction_engine import CorrectionEngine
+from ml.historical_aggregator import get_historical_crowd_pattern
 
 app = FastAPI(title="Hospital Queue ML Microservice", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -74,3 +75,7 @@ def predict_crowd(req: CrowdPredictionRequest):
 @app.post("/correct/adherence")
 def correct_adherence(req: AdherenceCorrectionRequest):
     return correction_engine.adjust_predictions(req.expected_arrivals, req.actual_arrivals, req.base_capacity)
+
+@app.get("/historical/crowd-pattern")
+def get_crowd_pattern(department: str = "General Medicine", day_of_week: int = 0):
+    return get_historical_crowd_pattern(department, day_of_week)
