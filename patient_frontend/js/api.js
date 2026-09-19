@@ -2,15 +2,19 @@
  * QUEUE — FastAPI Backend Client
  * Connects directly to FastAPI endpoints:
  *   - GET  /health
- *   - POST /checkin/scan
- *   - POST /checkin/staff-scan
- *   - POST /checkin/manual
- *   - POST /walkin/scan
- *   - POST /walkin/reception
- *   - GET  /queue/{department_id}/next
- *   - POST /queue/{department_id}/call-next
- *   - POST /tokens/virtual/preview   ("Check availability" for a requested consultation time)
- *   - POST /tokens/virtual           (time-slot booking)
+ *   - POST /tokens/check-in/scan          (was /checkin/scan — path + body field fixed below)
+ *   - POST /checkin/staff-scan            (staff-only: needs X-Staff-Id, not reachable from this app)
+ *   - POST /checkin/manual                (staff-only)
+ *   - POST /tokens/walk-in/scan           (was /walkin/scan — path + body field fixed below)
+ *   - POST /walkin/reception              (staff-only)
+ *   - GET  /queue/{department_id}/next    (staff-only)
+ *   - POST /queue/{department_id}/call-next (staff-only)
+ *   - POST /tokens/virtual/preview   ("Check availability" — NOT YET IMPLEMENTED on the backend;
+ *                                      always falls through to the local simulation below until
+ *                                      a scheduled-time-slot feature is actually built server-side)
+ *   - POST /tokens/virtual           (exists, but only supports "join today's queue now" -
+ *                                      it has no desired_consultation_at param yet, so a
+ *                                      requested time slot always falls back to simulation too)
  *
  * Automatically parses TokenOut and invokes store mutators.
  * Includes resilient fallback simulation when FastAPI is not currently running.
@@ -121,19 +125,20 @@ export const api = {
   },
 
   /**
-   * POST /checkin/scan
+   * POST /tokens/check-in/scan
    * Patient's app scans rotating QR at staff check-in desk
    * Moves existing VIRTUAL token into the PHYSICAL queue
    */
   async checkInScan(payload, tokenPublicId) {
     const reqBody = {
-      payload: payload || 'station_central_01.992817',
+      qr_payload: payload || 'station_central_01.992817',
       token_public_id: tokenPublicId || store.getState().token.public_id
     };
 
     try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/checkin/scan`, {
+      const res = await fetchWithTimeout(`${this.baseUrl}/tokens/check-in/scan`, {
         method: 'POST',
+        headers: patientHeaders(),
         body: JSON.stringify(reqBody)
       }, 3000);
 
@@ -172,7 +177,11 @@ export const api = {
 
   /**
    * POST /checkin/staff-scan
-   * Staff scans patient's token QR
+   * Staff scans patient's token QR.
+   * STAFF-ONLY ENDPOINT: requires an X-Staff-Id header this app has no way to provide (it only
+   * ever holds a patient session). Calling this from here will always 401 against the real
+   * backend and fall through to simulation - move this into the admin app's api client instead
+   * if it's meant to be used there, rather than fixed here.
    */
   async checkInStaffScan(tokenPublicId) {
     try {
@@ -192,21 +201,22 @@ export const api = {
   },
 
   /**
-   * POST /walkin/scan
-   * Patient scans walk-in QR and enters physical queue directly
+   * POST /tokens/walk-in/scan
+   * Patient scans walk-in QR and enters physical queue directly.
+   * Patient identity comes from the X-Patient-Id auth header, not the body - the backend's
+   * WalkInScanRequest has no patient_id field, so it's dropped here rather than sent for nothing.
    */
-  async walkInScan({ payload, patientId, departmentId, reason }) {
-    const state = store.getState();
+  async walkInScan({ payload, departmentId, reason }) {
     const reqBody = {
-      payload: payload || 'station_walkin_01.884102',
-      patient_id: patientId || state.patient.id,
+      qr_payload: payload || 'station_walkin_01.884102',
       department_id: departmentId || 101,
       reason: reason || 'Walk-in acute consultation'
     };
 
     try {
-      const res = await fetchWithTimeout(`${this.baseUrl}/walkin/scan`, {
+      const res = await fetchWithTimeout(`${this.baseUrl}/tokens/walk-in/scan`, {
         method: 'POST',
+        headers: patientHeaders(),
         body: JSON.stringify(reqBody)
       });
       if (!res.ok) throw new Error('Walk-in request failed');
@@ -217,14 +227,14 @@ export const api = {
       store.showToast(`Walk-in registered! Token ${tokenOut.display_code} generated.`, 'success');
       return tokenOut;
     } catch (err) {
-      console.warn('[API] /walkin/scan fallback to local simulation:', err.message);
+      console.warn('[API] /tokens/walk-in/scan fallback to local simulation:', err.message);
       const walkInToken = {
         id: 135,
         public_id: 'tok_' + Math.random().toString(36).substr(2, 9),
         display_code: 'G135',
         token_number: 135,
         token_date: new Date().toISOString().split('T')[0],
-        patient_id: reqBody.patient_id,
+        patient_id: store.getState().patient.id,
         department_id: reqBody.department_id,
         priority: 2,
         status: TOKEN_STATUS.WAITING,
@@ -241,7 +251,9 @@ export const api = {
 
   /**
    * POST /walkin/reception
-   * Staff registers walk-in / emergency at desk
+   * Staff registers walk-in / emergency at desk.
+   * STAFF-ONLY ENDPOINT: requires X-Staff-Id, which this app never has. Belongs in the admin
+   * app's api client - kept here only because it already existed; will always fall back.
    */
   async walkInReception({ patientId, departmentId, reason, priority = 2 }) {
     try {
@@ -262,7 +274,8 @@ export const api = {
 
   /**
    * GET /queue/{department_id}/next
-   * Peek at next waiting physical queue token
+   * Peek at next waiting physical queue token.
+   * STAFF-ONLY ENDPOINT: requires X-Staff-Id. Belongs in the admin app's api client.
    */
   async getQueueNext(departmentId = 101) {
     try {
@@ -279,7 +292,8 @@ export const api = {
 
   /**
    * POST /queue/{department_id}/call-next
-   * Atomically pull the next waiting patient and mark CALLED
+   * Atomically pull the next waiting patient and mark CALLED.
+   * STAFF-ONLY ENDPOINT: requires X-Staff-Id. Belongs in the admin app's api client.
    */
   async callNextPatient(departmentId = 101, doctorId = 4) {
     try {

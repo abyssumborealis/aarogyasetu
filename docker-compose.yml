@@ -1,51 +1,63 @@
+# Smart Hospital Queue Management System
+#   docker compose up -d --build
+# Reads settings from ./.env  (copy .env.example to .env first)
+
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: queue_db
-      POSTGRES_USER: queue_user
-      POSTGRES_PASSWORD: queue_pass   # change for anything beyond local dev
+      POSTGRES_USER: ${POSTGRES_USER:-queue_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-queue_db}
     volumes:
-      - db_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"                  # optional: only needed if you want to hit it from outside Docker (e.g. a GUI client)
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U queue_user -d queue_db"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
-      timeout: 5s
-      retries: 5
+      timeout: 3s
+      retries: 20
+    # Not published to the internet on purpose - only the backend talks to it.
+    # To inspect it from your machine, uncomment (and remove again before going live):
+    # ports: ["127.0.0.1:5432:5432"]
 
   backend:
-    build:
-      context: ./backend
+    build: ./backend
     restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql+psycopg://queue_user:queue_pass@db:5432/queue_db
-      JWT_SECRET: change-me-in-production   # once auth.py exists
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app               # live-reload in dev; drop this in a prod compose file
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-queue_user}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-queue_db}
+      APP_ENV: ${APP_ENV:-production}          # production = refuses to start with a default JWT secret or CORS "*"
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS in .env}
+      HOSPITAL_TIMEZONE: ${HOSPITAL_TIMEZONE:-Asia/Kolkata}
+      NOTIFY_CHANNELS: ${NOTIFY_CHANNELS:-in_app}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+      SCHEDULER_INTERVAL_SECONDS: ${SCHEDULER_INTERVAL_SECONDS:-15}
+    expose:
+      - "8000"          # reachable by the web container only
 
-  patient_frontend:
-    image: nginx:alpine
+  # Reverse proxy + static frontends. Local: http://localhost   Live: automatic HTTPS for your domain.
+  web:
+    image: caddy:2-alpine
     restart: unless-stopped
-    volumes:
-      - ./patient_frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
     ports:
-      - "5173:80"
-
-  admin_frontend:
-    image: nginx:alpine
-    restart: unless-stopped
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     volumes:
-      - ./admin_frontend:/usr/share/nginx/html:ro
-    ports:
-      - "5174:80"
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./patient_frontend:/srv/patient:ro
+      - ./admin_frontend:/srv/admin:ro
+      - caddy_data:/data          # TLS certificates - keep this volume
+      - caddy_config:/config
 
 volumes:
-  db_data:
+  pgdata:
+  caddy_data:
+  caddy_config:

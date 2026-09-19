@@ -1,0 +1,30 @@
+# SITE_ADDRESS=:80                -> plain http://localhost   (local testing)
+# SITE_ADDRESS=queue.example.com  -> Caddy gets and renews an HTTPS certificate by itself
+{$SITE_ADDRESS::80} {
+	encode gzip
+
+	# API: https://your-domain/api/...  ->  backend:8000/...   (same origin, so the browser needs no CORS)
+	handle_path /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# Staff / admin dashboard: https://your-domain/admin/
+	handle_path /admin/* {
+		root * /srv/admin
+		try_files {path} /index.html
+		file_server
+	}
+
+	# Patient app at the root
+	handle {
+		root * /srv/patient
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
