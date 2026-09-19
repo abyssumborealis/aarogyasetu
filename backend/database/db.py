@@ -1,8 +1,7 @@
 """
-Database engine / session setup.
+Database engine / session setup - PostgreSQL only.
 
-    DATABASE_URL   e.g. postgresql+psycopg://user:pass@host:5432/queue_db  (env var)
-                   defaults to a local SQLite file for quick dev, no Postgres required.
+    DATABASE_URL   postgresql+psycopg://user:pass@host:5432/queue_db   (required)
 
 Two ways to get a session:
     get_db()        - FastAPI dependency, one Session per request, closed afterwards
@@ -13,30 +12,22 @@ import os
 from contextlib import contextmanager
 from typing import Generator
 
-from sqlalchemy import create_engine, event
-from sqlalchemy.engine import Engine
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./queue.db")
-
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is not set. Expected a Postgres URL, e.g. "
+        "postgresql+psycopg://queue_user:queue_pass@localhost:5432/queue_db "
+        "(see docker-compose.yml for the local-dev value)."
+    )
 
 engine = create_engine(
     DATABASE_URL,
     echo=os.getenv("SQL_ECHO", "false").lower() == "true",
     pool_pre_ping=True,
-    connect_args=connect_args,
 )
-
-
-# SQLite doesn't enforce FOREIGN KEY constraints unless told to. Harmless on Postgres.
-@event.listens_for(Engine, "connect")
-def _set_sqlite_pragma(dbapi_connection, connection_record) -> None:
-    if DATABASE_URL.startswith("sqlite"):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 

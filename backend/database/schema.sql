@@ -1,5 +1,5 @@
 -- Smart Hospital Queue Management System : PostgreSQL schema
--- GENERATED from app/models.py -> regenerate with: python -m app.init_db --sql > db/schema.sql
+-- GENERATED from database/models.py -> regenerate with: python -m database.init_db --sql > database/schema.sql
 
 CREATE TABLE hospitals (
 	id SERIAL NOT NULL, 
@@ -47,6 +47,7 @@ CREATE TABLE departments (
 	description TEXT, 
 	avg_consult_minutes INTEGER DEFAULT '10' NOT NULL, 
 	max_daily_tokens INTEGER, 
+	report_grace_minutes INTEGER DEFAULT '20' NOT NULL, 
 	is_active BOOLEAN DEFAULT true NOT NULL, 
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
@@ -182,6 +183,14 @@ CREATE TABLE tokens (
 	completed_at TIMESTAMP WITH TIME ZONE, 
 	position_at_issue INTEGER, 
 	predicted_wait_minutes INTEGER, 
+	virtual_queue_length_at_issue INTEGER, 
+	physical_queue_length_at_issue INTEGER, 
+	physical_queue_length_at_checkin INTEGER, 
+	doctors_available_at_issue INTEGER, 
+	expected_call_at TIMESTAMP WITH TIME ZONE, 
+	report_by_at TIMESTAMP WITH TIME ZONE, 
+	report_deadline_at TIMESTAMP WITH TIME ZONE, 
+	absence_count INTEGER DEFAULT '0' NOT NULL, 
 	CONSTRAINT pk_tokens PRIMARY KEY (id), 
 	CONSTRAINT uq_tokens_dept_date_number UNIQUE (department_id, token_date, token_number), 
 	CONSTRAINT ck_tokens_priority_valid CHECK (priority IN (0, 1, 2)), 
@@ -262,3 +271,32 @@ CREATE TABLE queue_history (
 );
 
 CREATE INDEX ix_queue_history_dept_date ON queue_history (department_id, visit_date);
+
+CREATE TABLE notifications (
+	id SERIAL NOT NULL, 
+	patient_id INTEGER NOT NULL, 
+	token_id INTEGER, 
+	type VARCHAR(30) NOT NULL, 
+	channel VARCHAR(10) NOT NULL, 
+	title VARCHAR(120) NOT NULL, 
+	body TEXT NOT NULL, 
+	send_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	status VARCHAR(10) DEFAULT 'pending' NOT NULL, 
+	sent_at TIMESTAMP WITH TIME ZONE, 
+	read_at TIMESTAMP WITH TIME ZONE, 
+	attempts INTEGER DEFAULT '0' NOT NULL, 
+	last_error VARCHAR(500), 
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	CONSTRAINT pk_notifications PRIMARY KEY (id), 
+	CONSTRAINT fk_notifications_patient_id_patients FOREIGN KEY(patient_id) REFERENCES patients (id) ON DELETE CASCADE, 
+	CONSTRAINT fk_notifications_token_id_tokens FOREIGN KEY(token_id) REFERENCES tokens (id) ON DELETE CASCADE, 
+	CONSTRAINT ck_notifications_type CHECK (type IN ('token_issued', 'report_reminder', 'report_now', 'report_last_call', 'report_time_changed', 'checked_in', 'called', 'call_reminder', 'requeued', 'token_lapsed', 'reinstated')), 
+	CONSTRAINT ck_notifications_channel CHECK (channel IN ('in_app', 'sms', 'push', 'email')), 
+	CONSTRAINT ck_notifications_status CHECK (status IN ('pending', 'sent', 'failed', 'cancelled'))
+);
+
+CREATE INDEX ix_notifications_patient_id ON notifications (patient_id);
+CREATE INDEX ix_notifications_token_id ON notifications (token_id);
+CREATE INDEX ix_notifications_patient_inbox ON notifications (patient_id, channel, send_at);
+CREATE INDEX ix_notifications_dispatch_due ON notifications (status, send_at);
+CREATE UNIQUE INDEX uq_notifications_pending_dedup ON notifications (token_id, type, channel) WHERE status = 'pending';
