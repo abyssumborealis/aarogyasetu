@@ -1,15 +1,20 @@
-"""ETA Model Training and Inference Pipeline aligned with backend contracts."""
+"""
+Current Waiting Time (ETA) Prediction Model.
+Predicts the waiting time in minutes for an arrived physical queue token.
+Uses Scikit-learn Pipeline with ColumnTransformer and RandomForestRegressor.
+"""
 from __future__ import annotations
+from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict
 import joblib
-import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
-NUMERIC = [
+NUMERIC_FEATURES = [
     "queue_length",
     "people_ahead",
     "doctors_available",
@@ -20,101 +25,102 @@ NUMERIC = [
     "emergency_patients",
     "hour",
 ]
-CATEGORICAL = ["department"]
 
-DEPT_NAME_MAP = {
-    "GEN": "General Medicine", "1": "General Medicine", 1: "General Medicine",
-    "CAR": "Cardiology", "2": "Cardiology", 2: "Cardiology",
-    "ORT": "Orthopaedics", "3": "Orthopaedics", 3: "Orthopaedics",
-    "PED": "Paediatrics", "4": "Paediatrics", 4: "Paediatrics",
-    "DER": "Dermatology", "5": "Dermatology", 5: "Dermatology",
-    "ORTHOPEDICS": "Orthopaedics", "PEDIATRICS": "Paediatrics",
+CATEGORICAL_FEATURES = ["department"]
+
+DEPT_MAP = {
+    "gen": "General Medicine",
+    "general": "General Medicine",
+    "general medicine": "General Medicine",
+    "car": "Cardiology",
+    "cardiology": "Cardiology",
+    "ort": "Orthopaedics",
+    "orthopaedics": "Orthopaedics",
+    "orthopedics": "Orthopaedics",
+    "ped": "Paediatrics",
+    "paediatrics": "Paediatrics",
+    "pediatrics": "Paediatrics",
+    "der": "Dermatology",
+    "dermatology": "Dermatology",
 }
 
-def normalize_dept(dept: any) -> str:
-    s = str(dept).strip()
-    return DEPT_NAME_MAP.get(s, DEPT_NAME_MAP.get(s.upper(), s))
+def normalize_dept(dept_str: str | None) -> str:
+    if not dept_str:
+        return "General Medicine"
+    return DEPT_MAP.get(dept_str.strip().lower(), "General Medicine")
 
-def _pipeline() -> Pipeline:
-    pre = ColumnTransformer(
+def build_pipeline() -> Pipeline:
+    preprocessor = ColumnTransformer(
         [
-            ("num", "passthrough", NUMERIC),
-            ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), CATEGORICAL),
+            ("num", "passthrough", NUMERIC_FEATURES),
+            ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), CATEGORICAL_FEATURES),
         ]
     )
     model = RandomForestRegressor(
-        n_estimators=100,
-        max_depth=12,
-        min_samples_leaf=2,
-        random_state=42,
-        n_jobs=-1,
+        n_estimators=100, max_depth=12, min_samples_leaf=2, random_state=42, n_jobs=-1
     )
-    return Pipeline([("pre", pre), ("rf", model)])
+    return Pipeline([("pre", preprocessor), ("rf", model)])
 
 def train_eta_model(df: pd.DataFrame) -> Pipeline:
     df = df.copy()
     df["department"] = df["department"].apply(normalize_dept)
-    X = df[NUMERIC + CATEGORICAL]
+    X = df[NUMERIC_FEATURES + CATEGORICAL_FEATURES]
     y = df["waiting_time_minutes"]
-    pipe = _pipeline()
+    pipe = build_pipeline()
     pipe.fit(X, y)
     return pipe
 
-def predict_eta(model: Pipeline, features: dict) -> dict:
-    """Predicts wait time for an arrived physical token."""
-    dept = normalize_dept(features.get("department") or features.get("department_code") or features.get("department_id") or "General Medicine")
-    
-    docs = max(1, int(features.get("doctors_available", 1)))
+def predict_eta(model: Pipeline, features: Dict[str, Any]) -> Dict[str, Any]:
+    dept_raw = features.get("department") or features.get("department_code") or "General Medicine"
+    dept_norm = normalize_dept(str(dept_raw))
+
+    doctors = max(1, int(features.get("doctors_available", 1)))
     avg_srv = max(1.0, float(features.get("average_service_time", 10.0)))
     people_ahead = max(0, int(features.get("people_ahead", 0)))
-    q_len = max(people_ahead, int(features.get("queue_length", people_ahead)))
+    queue_len = int(features.get("queue_length", people_ahead + 1))
     
-    # Priority handling: if raw priority integer is passed (0=Emergency, 1=Priority, 2=Normal)
-    if "priority" in features and "emergency_patients" not in features:
-        emergencies = 1 if features["priority"] == 0 else 0
-    else:
-        emergencies = int(features.get("emergency_patients", 0))
-
-    # Auto-derive rate features if caller did not supply them
-    srv_rate = float(features.get("service_rate", docs * (60.0 / avg_srv)))
-    arr_rate = float(features.get("arrival_rate", float(q_len)))
+    srv_rate = float(features.get("service_rate", doctors * (60.0 / avg_srv)))
+    arr_rate = float(features.get("arrival_rate", srv_rate * 0.85))
+    being_served = int(features.get("patients_being_served", min(doctors, queue_len)))
+    emergencies = int(features.get("emergency_patients", 0))
+    
+    hour_val = features.get("hour")
+    hour = int(hour_val if hour_val is not None else datetime.now().hour)
 
     row = {
-        "queue_length": q_len,
+        "queue_length": queue_len,
         "people_ahead": people_ahead,
-        "doctors_available": docs,
-        "patients_being_served": min(docs, q_len),
+        "doctors_available": doctors,
+        "patients_being_served": being_served,
         "average_service_time": avg_srv,
         "arrival_rate": arr_rate,
         "service_rate": srv_rate,
         "emergency_patients": emergencies,
-        "hour": int(features.get("hour", datetime.now().hour if "datetime" in globals() else 10)),
-        "department": dept,
+        "hour": hour,
+        "department": dept_norm,
     }
 
-    X = pd.DataFrame([row])
-    
-    try:
-        rf = model.named_steps["rf"]
-        X_trans = model.named_steps["pre"].transform(X)
-        preds = [tree.predict(X_trans)[0] for tree in rf.estimators_]
-        pred_val = float(np.mean(preds))
-        std_val = float(np.std(preds))
-        confidence = round(max(0.5, min(0.98, 1.0 - (std_val / max(pred_val, 1.0)))), 2)
-    except Exception:
-        pred_val = float(model.predict(X)[0])
-        confidence = 0.85
+    df_in = pd.DataFrame([row])
+    raw_pred = float(model.predict(df_in)[0])
+    wait_minutes = max(0, int(round(raw_pred)))
 
-    wait_minutes = max(0, int(round(pred_val)))
+    confidence = 0.95
+    if queue_len > 35 or people_ahead > 30:
+        confidence = 0.82
+    elif emergencies > 3:
+        confidence = 0.88
+
     return {
         "estimated_wait_minutes": wait_minutes,
+        "predicted_wait_minutes": wait_minutes,
         "confidence": confidence,
-        "model_version": "rf-eta-v1.0"
+        "department": dept_norm,
     }
 
-def save_model(model: Pipeline, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, path)
+def save_model(model: Pipeline, path: Path | str) -> None:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(model, target)
 
-def load_model(path: Path) -> Pipeline:
+def load_model(path: Path | str) -> Pipeline:
     return joblib.load(path)
