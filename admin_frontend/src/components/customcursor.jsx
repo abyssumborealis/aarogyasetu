@@ -11,7 +11,7 @@
  * state), and the loop stops once both have caught up with a resting pointer.
  */
 import { useEffect, useRef } from "react";
-import { useMousePosition, usePointerEffects } from "../hooks/useMouseposition";
+import { useMousePosition, usePointerEffects } from "../hooks/useMousePosition";
 
 const DOT_EASE = 0.55;
 const RING_EASE = 0.16;
