@@ -1,4 +1,12 @@
 # Replace the placeholder in services/eta.py:
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Optional
+from zoneinfo import ZoneInfo
+
+from config import settings
+from database import models as m
+from services.timeutil import aware, local_today
 def estimate_wait_minutes(dept: m.Department, ahead: int, doctors_available: int) -> int:
     """Minutes until a token with `ahead` people in front of it is likely to be called."""
     # 1. Try real ML model
