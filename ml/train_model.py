@@ -38,7 +38,7 @@ def main():
     datasets = save_dataset(data_dir)
     print(f"Generated registrations: {len(datasets['registrations']):,} rows")
     print(f"Generated crowd features: {len(datasets['crowd']):,} rows")
-       print(f"Generated ETA features:   {len(datasets['eta']):,} rows")
+    print(f"Generated ETA features:   {len(datasets['eta']):,} rows")
     # ----------------------------------------------------------------------- #
     # Train ETA Model
     # ----------------------------------------------------------------------- #
