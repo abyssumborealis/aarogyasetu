@@ -37,6 +37,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Smart Hospital Queue Management System", version="0.2.0",
               lifespan=lifespan, root_path=os.getenv("ROOT_PATH", ""))
+@app.get("/", tags=["meta"])
+def root() -> dict:
+    return {
+        "status": "running",
+        "service": "Smart Hospital Queue Management System",
+        "version": "0.2.0",
+        "health": "/health",
+        "docs": "/docs",
+        "redoc": "/redoc"
+    }
 
 # Wide open for local dev with the patient/admin frontends on different ports.
 # Lock this down to your real frontend origins before deploying.
