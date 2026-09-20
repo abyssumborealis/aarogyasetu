@@ -20,7 +20,7 @@ from database.models import Base
 from routes import staff_queue, tokens
 from services import scheduler, sms
 from services.errors import QueueError
-
+from routes import staff_queue, tokens, auth
 logging.basicConfig(level=logging.INFO)
 
 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/auth/staff", tags=["auth"])
 
 class LoginRequest(BaseModel):
     email: str
@@ -9,23 +9,23 @@ class LoginRequest(BaseModel):
 
 @router.post("/login")
 def login(data: LoginRequest):
-    if (
-        data.email in [
-            "admin.citygeneral@queue.local",
-            "admin.lifeline@queue.local",
-        ]
-        and data.password == "ChangeMe123!"
-    ):
+    allowed = {
+        "admin.citygeneral@queue.local",
+        "admin.lifeline@queue.local",
+    }
+
+    if data.email in allowed and data.password == "ChangeMe123!":
         return {
-            "success": True,
-            "token": "demo-admin-token",
-            "user": {
+            "access_token": "demo-token",
+            "token_type": "bearer",
+            "staff": {
                 "email": data.email,
-                "role": "admin"
+                "role": "admin",
+                "name": "Hospital Admin"
             }
         }
 
     raise HTTPException(
         status_code=401,
-        detail="Invalid email or password"
+        detail="Invalid credentials"
     )
