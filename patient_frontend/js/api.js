@@ -25,7 +25,7 @@ import { SYSTEM_STATES, TOKEN_STATUS, QUEUE_TYPES, CHECKIN_METHODS, getDepartmen
 import { fmtWindow } from './timefmt.js';
 import { HISTORICAL_PATTERNS } from './historical_data.js';
 
-const API_BASE = window.__API_BASE__ || 'http://localhost:8000';
+const API_BASE = window.__API_BASE__ || 'https://aarogyasetu-1.onrender.com';
 
 // Frontend department ids (data.js) -> backend department ids (backend/database/seed.py:
 // hospital 1 = 101-105, hospital 2 = 201-205). data.js can also carry a `backendId` per department,
