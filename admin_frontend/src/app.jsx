@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./services/api";
 import { usePolling } from "./hooks/usePolling";
-import { usePointerEffects } from "./hooks/useMouseposition";
+import { usePointerEffects } from "./hooks/useMousePosition";
 import { actions, useStore } from "./store/useStore";
 
 import Dashboard from "./pages/dashboard";
