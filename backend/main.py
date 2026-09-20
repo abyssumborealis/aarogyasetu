@@ -6,6 +6,7 @@ Run locally:
 
 Env vars: see config.py (DATABASE_URL, JWT_SECRET, NOTIFY_CHANNELS, TWILIO_*, ...)
 """
+from routes import auth
 import logging
 from contextlib import asynccontextmanager
 import os
@@ -47,7 +48,9 @@ def root() -> dict:
         "docs": "/docs",
         "redoc": "/redoc"
     }
-
+app.include_router(auth.router)
+app.include_router(tokens.router)
+app.include_router(staff_queue.router)
 # Wide open for local dev with the patient/admin frontends on different ports.
 # Lock this down to your real frontend origins before deploying.
 app.add_middleware(
