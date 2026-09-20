@@ -9,7 +9,7 @@
  * button never moves.
  */
 import { useEffect, useRef } from "react";
-import { usePointerEffects } from "../hooks/useMouseposition";
+import { usePointerEffects } from "../hooks/useMousePosition";
 
 const MAX_PULL = 9; // px
 
