@@ -6,7 +6,7 @@
  *   <TiltCard className="department-card" maxTilt={4}> ... </TiltCard>
  */
 import { useEffect, useRef } from "react";
-import { usePointerEffects } from "../hooks/useMousePosition";
+import { usePointerEffects } from "../hooks/useMouseposition";
 
 export default function TiltCard({
   as: Tag = "div",

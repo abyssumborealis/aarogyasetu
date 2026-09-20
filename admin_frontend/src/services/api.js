@@ -127,10 +127,10 @@ function normalizeQueue(data) {
   return {
     department: dept,
     counts: {
-      physicalWaiting: c.physical_waiting ?? physical.length,
-      virtualWaiting: c.virtual_waiting ?? virtual.length,
-      inProgress: c.in_progress ?? inProgress.length,
-      doctorsAvailable: c.doctors_available ?? 0,
+      physicalWaiting: c.physicalWaiting ?? c.physical_waiting ?? physical.length,
+      virtualWaiting: c.virtualWaiting ?? c.virtual_waiting ?? virtual.length,
+      inProgress: c.inProgress ?? c.in_progress ?? inProgress.length,
+      doctorsAvailable: c.doctorsAvailable ?? c.doctors_available ?? 0,
     },
     physical,
     virtual,

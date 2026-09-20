@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../services/api";
 import { actions } from "../store/useStore";
-import MagneticButton from "../components/MagneticButton";
+import MagneticButton from "../components/MagneticButtonagneticbutton";
 import { QueueGlyph } from "../components/Icons";
 
 export default function Login() {
@@ -95,3 +95,4 @@ export default function Login() {
     </main>
   );
 }
+

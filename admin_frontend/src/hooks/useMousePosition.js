@@ -56,11 +56,13 @@ export function useMousePosition(onMove) {
   return pos;
 }
 
-const FINE = "(hover: hover) and (pointer: fine)";
+const FINE = "(any-hover: hover) and (any-pointer: fine)";
 const REDUCED = "(prefers-reduced-motion: reduce)";
 
 function detectCapable() {
   if (typeof window === "undefined" || !window.matchMedia) return false;
+  // Testing override: open the console with ?cursor=on to ignore both checks.
+  if (/[?&]cursor=on\b/.test(window.location.search)) return true;
   return window.matchMedia(FINE).matches && !window.matchMedia(REDUCED).matches;
 }
 

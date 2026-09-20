@@ -28,7 +28,7 @@ export default function CursorTrail() {
 
 function Trail() {
   const canvasRef = useRef(null);
-  const wake = useRef(() => {});
+  const wake = useRef(() => { });
   const mouse = useMousePosition((p) => {
     if (!p.seeded) {
       p.seeded = true;
@@ -159,7 +159,7 @@ function Trail() {
     return () => {
       window.removeEventListener("resize", resize);
       cancelAnimationFrame(raf);
-      wake.current = () => {};
+      wake.current = () => { };
     };
   }, [mouse]);
 
