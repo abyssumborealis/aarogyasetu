@@ -10,7 +10,7 @@
  * pointer is still and the line has settled, then wakes on the next pointer move.
  */
 import { useEffect, useRef } from "react";
-import { useMousePosition, usePointerEffects } from "../hooks/useMouseposition";
+import { useMousePosition, usePointerEffects } from "../hooks/useMousePosition";
 
 const POINTS = 26;
 const MAX_WIDTH = 6.5;
