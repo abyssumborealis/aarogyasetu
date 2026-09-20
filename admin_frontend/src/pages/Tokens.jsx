@@ -3,7 +3,6 @@ import { api } from "../services/api";
 import { usePolling } from "../hooks/usePolling";
 import { actions, useStore } from "../store/useStore";
 import { fmtAgo, fmtTime, fmtWait, tokenCode } from "../utils/format";
-import MagneticButton from "../components/MagneticButton";
 import StatusBadge from "../components/StatusBadge";
 import { Search } from "../components/Icons";
 
@@ -94,9 +93,9 @@ function FindToken() {
             autoFocus
           />
         </div>
-        <MagneticButton type="submit" className="btn btn-primary" disabled={looking || !input.trim()}>
+        <button type="submit" className="btn btn-primary" disabled={looking || !input.trim()}>
           {looking ? "Looking..." : "Look up"}
-        </MagneticButton>
+        </button>
       </form>
 
       {error && (
@@ -152,7 +151,7 @@ function FindToken() {
           {(canCheckIn || canReinstate) && (
             <div className="token-result-actions">
               {canCheckIn && (
-                <MagneticButton
+                <button
                   className="btn btn-primary"
                   disabled={acting}
                   onClick={() =>
@@ -160,16 +159,16 @@ function FindToken() {
                   }
                 >
                   {acting ? "Checking in..." : "Check in patient"}
-                </MagneticButton>
+                </button>
               )}
               {canReinstate && (
-                <MagneticButton
+                <button
                   className="btn btn-primary"
                   disabled={acting || token.id === undefined}
                   onClick={() => act(() => api.reinstate(token.id), `${code} is back in the queue.`)}
                 >
                   {acting ? "Working..." : "Put back in queue"}
-                </MagneticButton>
+                </button>
               )}
             </div>
           )}
@@ -324,13 +323,13 @@ function RegisterAtDesk() {
           </p>
         )}
 
-        <MagneticButton
+        <button
           type="submit"
           className={`btn btn-lg ${priority === 0 ? "btn-danger" : "btn-primary"}`}
           disabled={!ready || busy}
         >
           {busy ? "Registering..." : priority === 0 ? "Register emergency" : "Register patient"}
-        </MagneticButton>
+        </button>
       </form>
 
       {issued && (

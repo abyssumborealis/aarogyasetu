@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { api } from "../services/api";
 import { actions } from "../store/useStore";
-import MagneticButton from "../components/MagneticButtonagneticbutton";
 import { QueueGlyph } from "../components/Icons";
 
 export default function Login() {
@@ -77,13 +76,13 @@ export default function Login() {
           </p>
         )}
 
-        <MagneticButton
+        <button
           type="submit"
           className="btn btn-primary btn-lg btn-full"
           disabled={busy || !email || !password}
         >
           {busy ? "Signing in..." : "Sign in"}
-        </MagneticButton>
+        </button>
 
         {import.meta.env.DEV && (
           <p className="field-hint login-dev-hint">

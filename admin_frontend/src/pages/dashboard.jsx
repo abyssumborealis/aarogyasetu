@@ -2,8 +2,6 @@ import { api } from "../services/api";
 import { usePolling } from "../hooks/usePolling";
 import { actions } from "../store/useStore";
 import { fmtToday } from "../utils/format";
-import TiltCard from "../components/TiltCard";
-import MagneticButton from "../components/MagneticButton";
 import PriorityTag from "../components/PriorityTag";
 import { Alert } from "../components/Icons";
 
@@ -81,12 +79,12 @@ export default function Dashboard() {
               {token.reason || "No reason recorded."}
             </div>
           </div>
-          <MagneticButton
+          <button
             className="btn btn-danger btn-sm alert-action"
             onClick={() => openQueue(department.id)}
           >
             Open queue
-          </MagneticButton>
+          </button>
         </div>
       ))}
 
@@ -145,7 +143,7 @@ function Kpi({ label, value, note, loading }) {
 function DepartmentCard({ department, queue, error }) {
   const next = queue?.physical[0];
   return (
-    <TiltCard className="department-card" maxTilt={3.5}>
+    <div className="department-card">
       <div className="department-card-top">
         <div>
           <span className="dept-prefix-badge">{department.code}</span>
@@ -187,11 +185,11 @@ function DepartmentCard({ department, queue, error }) {
         <span className="dept-roster-footnote">
           {queue ? `${queue.counts.doctorsAvailable} doctor${queue.counts.doctorsAvailable === 1 ? "" : "s"} available` : ""}
         </span>
-        <MagneticButton className="btn btn-primary btn-sm" onClick={() => openQueue(department.id)}>
+        <button className="btn btn-primary btn-sm" onClick={() => openQueue(department.id)}>
           Open queue
-        </MagneticButton>
+        </button>
       </div>
-    </TiltCard>
+    </div>
   );
 }
 

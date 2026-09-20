@@ -24,7 +24,6 @@ const saved = readSaved();
 let state = {
   token: saved.token || null,          // staff JWT
   staff: saved.staff || null,          // { full_name, email, role, hospital_id } when the API returns it
-  effects: saved.effects ?? true,      // cursor line follower, ring and tilt/magnetic effects
   deptId: saved.deptId ?? null,        // department open on the Staff queue page
   toasts: [],
 };
@@ -33,8 +32,8 @@ const listeners = new Set();
 
 function persist() {
   try {
-    const { token, staff, effects, deptId } = state;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, staff, effects, deptId }));
+    const { token, staff, deptId } = state;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, staff, deptId }));
   } catch {
     /* storage blocked (private mode): the app still works, it just forgets on reload */
   }
@@ -65,9 +64,6 @@ export const actions = {
   },
   logout() {
     setState({ token: null, staff: null, deptId: null });
-  },
-  setEffects(effects) {
-    setState({ effects });
   },
   setDeptId(deptId) {
     setState({ deptId });

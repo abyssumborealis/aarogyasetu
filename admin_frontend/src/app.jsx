@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./services/api";
 import { usePolling } from "./hooks/usePolling";
-import { usePointerEffects } from "./hooks/useMousePosition";
 import { actions, useStore } from "./store/useStore";
 
 import Dashboard from "./pages/dashboard";
@@ -9,10 +8,8 @@ import StaffQueue from "./pages/StaffQueue";
 import Tokens from "./pages/Tokens";
 import Login from "./pages/Login";
 
-import CursorTrail from "./components/cursorTrail";
-import CustomCursor from "./components/customcursor";
 import Toasts from "./components/Toasts";
-import { QueueGlyph, Sparkle } from "./components/Icons";
+import { QueueGlyph } from "./components/Icons";
 
 const ROUTES = [
   { path: "/", label: "Dashboard", Page: Dashboard },
@@ -40,8 +37,6 @@ export default function App() {
   return (
     <>
       {token ? <Shell /> : <Login />}
-      <CursorTrail />
-      <CustomCursor />
       <Toasts />
     </>
   );
@@ -50,8 +45,6 @@ export default function App() {
 function Shell() {
   const path = useHashRoute();
   const staff = useStore((s) => s.staff);
-  const effects = useStore((s) => s.effects);
-  const { capable } = usePointerEffects();
   const health = usePolling(api.health, { interval: 15000 });
 
   const route = ROUTES.find((r) => r.path === path) ?? ROUTES[0];
@@ -94,18 +87,6 @@ function Shell() {
               <span className="dot" />
               {health.loading && !health.data ? "Connecting" : online ? "Connected" : "Offline"}
             </span>
-
-            {capable && (
-              <button
-                className={`btn btn-secondary btn-xs effects-toggle${effects ? " is-on" : ""}`}
-                aria-pressed={effects}
-                onClick={() => actions.setEffects(!effects)}
-                title="Cursor line follower, ring and hover effects"
-              >
-                <Sparkle width={14} height={14} />
-                Cursor effects {effects ? "on" : "off"}
-              </button>
-            )}
 
             <span className="who" title={staff?.email}>
               {who}

@@ -3,7 +3,6 @@ import { api } from "../services/api";
 import { usePolling } from "../hooks/usePolling";
 import { actions, useStore } from "../store/useStore";
 import { fmtAgo, fmtTime, parseDate, tokenCode } from "../utils/format";
-import MagneticButton from "../components/MagneticButton";
 import ConfirmDialog from "../components/ConfirmDialog";
 import PriorityTag from "../components/PriorityTag";
 import StatusBadge from "../components/StatusBadge";
@@ -218,9 +217,9 @@ export default function StaffQueue() {
             )}
           </div>
 
-          <MagneticButton className="btn btn-primary btn-lg" onClick={callNext} disabled={!canCall}>
+          <button className="btn btn-primary btn-lg" onClick={callNext} disabled={!canCall}>
             {busy === "call" ? "Calling..." : "Call next patient"}
-          </MagneticButton>
+          </button>
         </div>
       </section>
 
@@ -260,22 +259,22 @@ export default function StaffQueue() {
                         >
                           Patient is absent
                         </button>
-                        <MagneticButton
+                        <button
                           className="btn btn-primary btn-sm"
                           disabled={!!busy}
                           onClick={() => run(`start-${t.id}`, () => api.startConsultation(t.id), `${codeOf(t)} is with the doctor.`)}
                         >
                           {busy === `start-${t.id}` ? "Starting..." : "Start consultation"}
-                        </MagneticButton>
+                        </button>
                       </>
                     ) : (
-                      <MagneticButton
+                      <button
                         className="btn btn-emerald btn-sm"
                         disabled={!!busy}
                         onClick={() => run(`done-${t.id}`, () => api.completeConsultation(t.id), `${codeOf(t)} completed.`)}
                       >
                         {busy === `done-${t.id}` ? "Completing..." : "Complete"}
-                      </MagneticButton>
+                      </button>
                     )}
                   </div>
                 </div>
