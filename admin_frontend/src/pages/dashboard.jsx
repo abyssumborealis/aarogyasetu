@@ -3,7 +3,7 @@ import { usePolling } from "../hooks/usePolling";
 import { actions } from "../store/useStore";
 import { fmtToday } from "../utils/format";
 import TiltCard from "../components/TiltCard";
-import MagneticButton from "../components/magneticbutton";
+import MagneticButton from "../components/MagneticButton";
 import PriorityTag from "../components/PriorityTag";
 import { Alert } from "../components/Icons";
 
