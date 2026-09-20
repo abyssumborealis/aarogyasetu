@@ -3728,3 +3728,70 @@
     gap: 12px;
   }
 }
+
+/* --------------------------------------------------------------------------
+   16. MOUSE-REACTIVE SURFACES (card spotlight)
+   cursor.js writes --mx / --my (pointer position inside the card) while the
+   pointer is over it. Without the script the glow simply sits centered and
+   only shows on hover. Keep this selector list in sync with SPOTLIGHT in
+   cursor.js.
+   -------------------------------------------------------------------------- */
+:is(
+  .card, .panel, .dashboard-card, .hospital-card, .queue-card,
+  .feature-card, .how-card, .live-kpi-card, .department-card,
+  .access-choice-card, .intelligence-card, .insight-card,
+  .live-telemetry-preview-card, .historical-chart-card, .kpi-telemetry-bar
+) {
+  position: relative;
+}
+
+:is(
+  .card, .panel, .dashboard-card, .hospital-card, .queue-card,
+  .feature-card, .how-card, .live-kpi-card, .department-card,
+  .access-choice-card, .intelligence-card, .insight-card,
+  .live-telemetry-preview-card, .historical-chart-card, .kpi-telemetry-bar
+)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  background: radial-gradient(
+    circle var(--spotlight-radius) at var(--mx, 50%) var(--my, 50%),
+    rgba(var(--cursor-rgb), var(--spotlight-alpha)),
+    transparent 70%
+  );
+}
+
+:is(
+  .card, .panel, .dashboard-card, .hospital-card, .queue-card,
+  .feature-card, .how-card, .live-kpi-card, .department-card,
+  .access-choice-card, .intelligence-card, .insight-card,
+  .live-telemetry-preview-card, .historical-chart-card, .kpi-telemetry-bar
+):hover::after {
+  opacity: 1;
+}
+
+@media (hover: none), (pointer: coarse) {
+  :is(
+    .card, .panel, .dashboard-card, .hospital-card, .queue-card,
+    .feature-card, .how-card, .live-kpi-card, .department-card,
+    .access-choice-card, .intelligence-card, .insight-card,
+    .live-telemetry-preview-card, .historical-chart-card, .kpi-telemetry-bar
+  )::after {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(
+    .card, .panel, .dashboard-card, .hospital-card, .queue-card,
+    .feature-card, .how-card, .live-kpi-card, .department-card,
+    .access-choice-card, .intelligence-card, .insight-card,
+    .live-telemetry-preview-card, .historical-chart-card, .kpi-telemetry-bar
+  )::after {
+    transition: none;
+  }
+}

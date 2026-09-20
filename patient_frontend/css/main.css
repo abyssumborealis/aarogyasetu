@@ -670,3 +670,200 @@ hr {
   background: var(--primary);
   display: inline-block;
 }
+
+/* =========================================================
+   CURSOR & POINTER EFFECTS
+   Driven by cursor.js. Every rule here is inert until the
+   script adds .has-custom-cursor to <html>, so if the script
+   fails to load the normal cursor stays.
+   ========================================================= */
+
+:root {
+  --cursor-rgb: 29, 78, 216;          /* --primary, as r, g, b for rgba() */
+  --cursor-teal-rgb: 13, 148, 136;    /* --teal */
+  --cursor-danger-rgb: 220, 38, 38;   /* --danger */
+  --cursor-dot-size: 6px;
+  --cursor-ring-size: 34px;
+  --cursor-z: 9999;
+  --spotlight-radius: 260px;
+  --spotlight-alpha: 0.07;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hide the native cursor, but keep it where it carries meaning */
+html.has-custom-cursor,
+html.has-custom-cursor * {
+  cursor: none !important;
+}
+
+html.has-custom-cursor input:not([type="radio"]):not([type="checkbox"]):not([type="button"]):not([type="submit"]):not([type="range"]),
+html.has-custom-cursor textarea,
+html.has-custom-cursor [contenteditable="true"] {
+  cursor: text !important;
+}
+
+html.has-custom-cursor select {
+  cursor: auto !important;
+}
+
+/* Follower: dot sits on the pointer, ring trails behind.
+   The wrapper is moved with transform; the visible circle is ::before
+   so it can scale without fighting the position. */
+.cursor-dot,
+.cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: var(--cursor-z);
+  opacity: 0;
+  will-change: transform;
+  transition: opacity 0.2s ease;
+}
+
+.cursor-dot.is-visible,
+.cursor-ring.is-visible {
+  opacity: 1;
+}
+
+.cursor-dot.is-text,
+.cursor-ring.is-text {
+  opacity: 0;
+}
+
+.cursor-dot::before,
+.cursor-ring::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  transition:
+    transform 0.22s var(--ease-out),
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.cursor-dot::before {
+  width: var(--cursor-dot-size);
+  height: var(--cursor-dot-size);
+  margin: calc(var(--cursor-dot-size) / -2) 0 0 calc(var(--cursor-dot-size) / -2);
+  background: var(--primary);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.cursor-ring::before {
+  width: var(--cursor-ring-size);
+  height: var(--cursor-ring-size);
+  margin: calc(var(--cursor-ring-size) / -2) 0 0 calc(var(--cursor-ring-size) / -2);
+  border: 1.5px solid rgba(var(--cursor-rgb), 0.5);
+  background: rgba(var(--cursor-rgb), 0.03);
+}
+
+/* Over something clickable */
+.cursor-dot.is-active::before {
+  transform: scale(0);
+}
+
+.cursor-ring.is-active::before {
+  transform: scale(1.5);
+  border-color: rgba(var(--cursor-teal-rgb), 0.85);
+  background: rgba(var(--cursor-rgb), 0.08);
+}
+
+/* Over a disabled control */
+.cursor-ring.is-disabled::before {
+  border-color: rgba(var(--cursor-danger-rgb), 0.7);
+  background: rgba(var(--cursor-danger-rgb), 0.06);
+}
+
+/* Mouse button held */
+.cursor-ring.is-down::before {
+  transform: scale(0.8);
+}
+
+.cursor-ring.is-active.is-down::before {
+  transform: scale(1.2);
+}
+
+/* Cursor line: fading trail (canvas) */
+.cursor-trail {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: calc(var(--cursor-z) - 1);
+}
+
+/* Cursor line: crosshair guides (lineMode: 'crosshair') */
+.cursor-cross {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: calc(var(--cursor-z) - 1);
+  opacity: 0;
+  will-change: transform;
+  transition: opacity 0.2s ease;
+}
+
+.cursor-cross.is-visible {
+  opacity: 1;
+}
+
+.cursor-cross-x {
+  width: 1px;
+  height: 100vh;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(var(--cursor-rgb), 0.22) 30%,
+    rgba(var(--cursor-rgb), 0.22) 70%,
+    transparent
+  );
+}
+
+.cursor-cross-y {
+  width: 100vw;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--cursor-rgb), 0.22) 30%,
+    rgba(var(--cursor-rgb), 0.22) 70%,
+    transparent
+  );
+}
+
+/* Keyboard focus stays clearly visible whatever the mouse is doing */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+summary:focus-visible,
+.choice-card:focus-within,
+.visit-type-card:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Touch screens: none of this applies */
+@media (hover: none), (pointer: coarse) {
+  .cursor-dot,
+  .cursor-ring,
+  .cursor-trail,
+  .cursor-cross {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor-dot,
+  .cursor-ring,
+  .cursor-trail,
+  .cursor-cross {
+    display: none !important;
+  }
+}
