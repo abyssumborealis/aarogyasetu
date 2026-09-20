@@ -95,14 +95,14 @@ document.addEventListener('click', (e) => {
   }
 
   // ---- Radio Option Card Selection ----
-  const radioCard = e.target.closest('.radio-option-card');
+  const radioCard = e.target.closest('.choice-card');
   if (radioCard && !e.target.matches('input[type="radio"]')) {
     const input = radioCard.querySelector('input[type="radio"]');
     if (input) {
       input.checked = true;
       const groupName = input.name;
       document.querySelectorAll(`input[name="${groupName}"]`).forEach(r => {
-        const parent = r.closest('.radio-option-card');
+        const parent = r.closest('.choice-card');
         if (parent) parent.classList.toggle('selected', r.checked);
       });
       if (groupName === 'patientStatus') {
