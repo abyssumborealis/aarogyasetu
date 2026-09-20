@@ -17,10 +17,10 @@
 		file_server
 	}
 
-	# Admin app
-	handle /admin/* {
-		root * /srv
-		file_server
+	# Staff console: built by the "admin" service, served at /admin/
+	redir /admin /admin/
+	handle_path /admin/* {
+		reverse_proxy admin:80
 	}
 
 	# Patient app at the root
